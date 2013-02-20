@@ -1,24 +1,27 @@
 package org.yarik.pzks2
 
-import java.awt.Dimension
 import java.awt.Rectangle
+
 import scala.collection.JavaConversions
+import scala.collection.JavaConversions.asScalaBuffer
+import scala.collection.JavaConversions.mapAsJavaMap
 import scala.collection.immutable.HashMap
 import scala.swing.BorderPanel
 import scala.swing.Button
 import scala.swing.FlowPanel
-import scala.swing.MainFrame
 import scala.swing.TextField
-import org.jgraph.graph.DefaultEdge
+import scala.swing.event.ButtonClicked
+import scala.swing.event.MouseClicked
+
 import org.jgraph.graph.GraphConstants
 import org.jgrapht.DirectedGraph
+import org.jgrapht.UndirectedGraph
+import org.jgrapht.alg.ConnectivityInspector
 import org.jgrapht.alg.CycleDetector
 import org.jgrapht.ext.JGraphModelAdapter
 import org.jgrapht.graph.ListenableDirectedWeightedGraph
 import org.jgrapht.graph.ListenableUndirectedWeightedGraph
-import scala.swing.event.ButtonClicked
-import scala.swing.event.MouseClicked
-import scala.swing.Panel
+import org.jgrapht.graph.MyEdge
 
 object UiHelper {
 
@@ -34,8 +37,8 @@ object UiHelper {
 
     def createMyModel =
       if (isDirected)
-        new ListenableDirectedWeightedGraph[Vertex, DefaultEdge](classOf[DefaultEdge]);
-      else new ListenableUndirectedWeightedGraph[Vertex, DefaultEdge](classOf[DefaultEdge]);
+        new ListenableDirectedWeightedGraph[Vertex, MyEdge](classOf[MyEdge]);
+      else new ListenableUndirectedWeightedGraph[Vertex, MyEdge](classOf[MyEdge]);
 
     val graph = createMyModel
     val graphComp = new SGraph
@@ -56,13 +59,13 @@ object UiHelper {
       val b = GraphConstants.getBounds(attr);
       GraphConstants.setBounds(attr, new Rectangle(x, y, b.getWidth().intValue(), b.getHeight().intValue()));
       val cellAttr = HashMap(cell -> attr);
-      val jmap = JavaConversions.mapAsJavaMap(cellAttr)
+      val jmap = mapAsJavaMap(cellAttr)
       model.edit(jmap, null, null, null)
     }
 
     def connect(from: Int, to: Int) {
       val edge = graph.addEdge(from, to)
-
+      graph.setEdgeWeight(edge, valueField.text.toInt)
     }
 
     val top = {
@@ -97,7 +100,13 @@ object UiHelper {
                 val cd = new CycleDetector(d)
                 val hasCycles = cd.detectCycles()
                 println(if (hasCycles) "has cycles" else "do not has cycles")
-              case _ => println("another mode")
+              case ug: UndirectedGraph[Vertex, _] =>
+                val ci = new ConnectivityInspector(ug)
+                val sets = ci.connectedSets()
+                println("connectivity sets")
+                sets.foreach { set =>
+                  println(JavaConversions.asScalaSet(set).toString)
+                }
             }
 
           case MouseClicked(`graphComp`, point, mod, c, t) =>
