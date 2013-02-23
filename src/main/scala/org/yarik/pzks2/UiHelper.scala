@@ -80,12 +80,13 @@ object UiHelper {
       val to = new TextField(5)
       val b2 = new Button("add edge")
       val action = new Button(if (isDirected) "find cycle" else "find blind")
+      val del = new Button("delete")
 
       val contents = new BorderPanel() {
         add(graphComp, BorderPanel.Position.Center)
-        add(new FlowPanel(valueField, b1, from, to, b2, action), BorderPanel.Position.South)
+        add(new FlowPanel(valueField, b1, from, to, b2, action, del), BorderPanel.Position.South)
 
-        listenTo(b1, from, b2, graphComp.mouse.clicks, action)
+        listenTo(b1, from, b2, graphComp.mouse.clicks, action, del)
 
         reactions += {
           case ButtonClicked(`b1`) =>
@@ -114,6 +115,9 @@ object UiHelper {
             val y = point.getY().intValue()
             lastId += 1
             createPoint(lastId, x, y)
+            
+          case ButtonClicked(`del`) =>
+            graph.removeVertex(valueField.text.toInt)
         }
       }
       contents
