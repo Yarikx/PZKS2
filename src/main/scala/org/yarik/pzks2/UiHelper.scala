@@ -1,25 +1,51 @@
 package org.yarik.pzks2
 
+import scala.collection.JavaConversions._;
+import scala.swing.TextField
 import com.mxgraph.model.mxGeometry
-import java.awt.BorderLayout
-import javax.swing.JPanel
-import org.jgrapht.{ DirectedGraph, UndirectedGraph }
-import org.jgrapht.alg.{ ConnectivityInspector, CycleDetector }
-import org.jgrapht.graph.{ ListenableDirectedWeightedGraph, ListenableUndirectedWeightedGraph, MyEdge }
-import scala.collection.JavaConversions._
-import scala.swing.event.Key
-import scala.swing.{ BorderPanel, Button, FlowPanel, TextField }
-import scala.swing.event.{ ButtonClicked, MouseClicked }
-import com.mxgraph.swing.mxGraphComponent
-import java.awt.event.MouseEvent
+import org.jgrapht.graph.ListenableUndirectedWeightedGraph
+import org.jgrapht.graph.ListenableDirectedWeightedGraph
+import org.jgrapht.graph.DefaultListenableGraph
+import org.jgrapht.graph.MyEdge
+import org.jgrapht.WeightedGraph
+import org.jgrapht.Graph
+import scala.swing.BorderPanel
+import scala.swing.Button
+import scala.swing.Component
 import java.awt.event.MouseAdapter
+import scala.swing.FlowPanel
+import scala.swing.event.ButtonClicked
+import org.jgrapht.DirectedGraph
+import java.awt.event.MouseEvent
+import org.jgrapht.alg.CycleDetector
 import java.awt.event.InputEvent
+import org.jgrapht.UndirectedGraph
+import org.jgrapht.alg.ConnectivityInspector
+import scala.swing.event.MouseClicked
+import scala.swing.event.Key
+import scala.swing.FileChooser
+import java.io.File
+import java.io.ObjectOutputStream
+import java.io.FileOutputStream
+import java.io.ObjectInputStream
+import java.io.FileInputStream
 
 object UiHelper {
 
   var lastId = 0;
 
-  def createTopView(isDirected: Boolean) = {
+  type MyGraph = DefaultListenableGraph[Vertex, MyEdge] with WeightedGraph[Vertex, MyEdge] with Serializable
+  type Adapter = JGraphXAdapter[Vertex, MyEdge] with Serializable
+
+  abstract case class Vertex(id: Int) {
+    val value: Int
+    override def toString = "%d (%d)".format(id, value)
+  }
+
+  var valueField: TextField = null
+  implicit def int2Vertex(id: Int) = new Vertex(id) { val value = valueField.text.toInt }
+
+  def createTopView(isDirected: Boolean, g: Option[MyGraph], a: Option[Adapter]): Component = {
 
     def createMyModel = {
       if (isDirected)
@@ -27,19 +53,28 @@ object UiHelper {
       else new ListenableUndirectedWeightedGraph[Vertex, MyEdge](classOf[MyEdge]);
     }
 
-    abstract case class Vertex(id: Int) {
-      val value: Int
-      override def toString = "%d (%d)".format(id, value)
+    val graph = g.getOrElse(createMyModel)
+
+//    val adapter = a.getOrElse(new JGraphXAdapter(graph));
+//    {
+//      adapter.getModel().beginUpdate();
+//      adapter.refresh();
+//      adapter.getModel().endUpdate();
+//      adapter.refresh();
+//    }
+    val adapter = new JGraphXAdapter(graph);
+    {
+      val cells = adapter.getVertexToCellMap().values().toSeq
+            val size = cells.size
+            adapter.getModel().beginUpdate()
+            for (i <- 0 until size;
+            	 cell = cells(i);
+            	 y = (i / 5) * 40 + 100;
+            	 x = (i % 5) * 40 + 100) {
+              adapter.getModel().setGeometry(cell, new mxGeometry(x, y, 20, 20));
+            }
+            adapter.getModel().endUpdate()
     }
-
-    val valueField = new TextField(5)
-    valueField.text = "2"
-    implicit def int2Vertex(id: Int) = new Vertex(id) { val value = valueField.text.toInt }
-
-    val graph = createMyModel
-    graph.addVertex(new Vertex(4) { val value = 5 })
-
-    val adapter = new JGraphXAdapter(graph)
 
     def createPoint(id: Int, x: Int, y: Int) {
       val v: Vertex = id
@@ -57,7 +92,7 @@ object UiHelper {
       graph.setEdgeWeight(edge, valueField.text.toInt)
     }
 
-    val top = {
+    val top: Component = {
 
       val b1 = new Button("add vertex")
       val from = new TextField(5)
@@ -65,20 +100,27 @@ object UiHelper {
       val b2 = new Button("add edge")
       val action = new Button(if (isDirected) "find cycle" else "find blind")
       val del = new Button("delete")
+
+      val save = new Button("save")
+      val load = new Button("load")
+
       val graphComp = new SGraph(adapter)
 
       val contents = new BorderPanel() {
+        val bp = this
         add(graphComp, BorderPanel.Position.Center)
-        add(new FlowPanel(valueField, b1, from, to, b2, action, del), BorderPanel.Position.South)
+        valueField = new TextField(5)
+        valueField.text = "1"
+        add(new FlowPanel(b1, valueField, from, to, b2, action, del, save, load), BorderPanel.Position.South)
 
-        listenTo(b1, from, b2, action, del, graphComp.mouse.clicks)
-        
-        graphComp.peer.getGraphControl().addMouseListener(new MouseAdapter(){
-          override def mouseClicked(evt: MouseEvent){
+        listenTo(b1, from, b2, action, del, graphComp.mouse.clicks, save, load)
+
+        graphComp.peer.getGraphControl().addMouseListener(new MouseAdapter() {
+          override def mouseClicked(evt: MouseEvent) {
             val x = evt.getX()
             val y = evt.getY()
-            println("clicked "+evt.getModifiers())
-            
+            println("clicked " + evt.getModifiers())
+
             if ((evt.getModifiers() & InputEvent.CTRL_MASK) != 0) {
               println("adding")
               lastId += 1
@@ -104,7 +146,7 @@ object UiHelper {
                 val cd = new CycleDetector(d)
                 val hasCycles = cd.detectCycles()
                 println(if (hasCycles) "has cycles" else "do not has cycles")
-              case ug: UndirectedGraph[_ , _] =>
+              case ug: UndirectedGraph[_, _] =>
                 val ci = new ConnectivityInspector(ug)
                 val sets = ci.connectedSets()
                 println("connectivity sets")
@@ -122,12 +164,36 @@ object UiHelper {
               createPoint(lastId, x, y)
             }
 
-          case ButtonClicked(`del`) =>
-            graph.removeVertex(valueField.text.toInt)
+          case ButtonClicked(`save`) =>
+            val fc = new FileChooser(new File("/tmp"))
+            fc.showSaveDialog(this)
+            val file = fc.selectedFile;
+            val dos = new ObjectOutputStream(new FileOutputStream(file))
+            dos.writeObject(graph)
+            dos.writeObject(adapter)
+            dos.close()
+
+          case ButtonClicked(`load`) =>
+            val fc = new FileChooser(new File("/tmp"))
+            fc.showOpenDialog(this)
+            val file = fc.selectedFile;
+            val dos = new ObjectInputStream(new FileInputStream(file))
+            val g = dos.readObject().asInstanceOf[MyGraph]
+            val a = dos.readObject().asInstanceOf[Adapter]
+            dos.close()
+            val newView = createTopView(isDirected, Some(g), Some(a))
+            Gapp.replace(isDirected, newView)
+
+          case ButtonClicked(`b2`) =>
+            connect(from.text.toInt, to.text.toInt)
 
         }
       }
       contents
+    }
+
+    def init(graph: Graph[Vertex, MyEdge]) {
+
     }
 
     top

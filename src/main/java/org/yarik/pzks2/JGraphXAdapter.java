@@ -1,11 +1,7 @@
 package org.yarik.pzks2;
 
-import com.mxgraph.util.mxEvent;
-import com.mxgraph.util.mxEventObject;
-
+import java.io.Serializable;
 import java.util.HashMap;
-
-import javax.swing.JFrame;
 
 import org.jgrapht.Graph;
 import org.jgrapht.ListenableGraph;
@@ -21,7 +17,7 @@ import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
 
 public class JGraphXAdapter<V, E> extends mxGraph implements
-		GraphListener<V, E> {
+		GraphListener<V, E>, Serializable {
 
 	private ListenableGraph<V, E> graphT;
 
