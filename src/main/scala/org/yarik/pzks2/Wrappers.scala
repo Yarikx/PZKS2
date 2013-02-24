@@ -1,8 +1,12 @@
 package org.yarik.pzks2
 
-import org.jgraph.JGraph
+import UiHelper._
+import com.mxgraph.swing.mxGraphComponent
+import scala.collection.JavaConversions._
 import scala.swing.Component
+import javax.swing.JButton
 
-class SGraph extends Component{
-  override lazy val peer = new JGraph
+class SGraph[V,E](graph: JGraphXAdapter[V,E]) extends Component{
+  override lazy val peer =  new mxGraphComponent(graph);
+  //override lazy val peer =  new JButton("test");
 }
