@@ -45,7 +45,7 @@ object UiHelper {
   var valueField: TextField = null
   implicit def int2Vertex(id: Int) = new Vertex(id) { val value = valueField.text.toInt }
 
-  def createTopView(isDirected: Boolean, g: Option[MyGraph], a: Option[Adapter]): Component = {
+  def createTopView(isDirected: Boolean, g: Option[MyGraph], a: Option[Seq[mxGeometry]]): Component = {
 
     def createMyModel = {
       if (isDirected)
@@ -55,25 +55,22 @@ object UiHelper {
 
     val graph = g.getOrElse(createMyModel)
 
-//    val adapter = a.getOrElse(new JGraphXAdapter(graph));
-//    {
-//      adapter.getModel().beginUpdate();
-//      adapter.refresh();
-//      adapter.getModel().endUpdate();
-//      adapter.refresh();
-//    }
+    //    val adapter = a.getOrElse(new JGraphXAdapter(graph));
+    //    {
+    //      adapter.getModel().beginUpdate();
+    //      adapter.refresh();
+    //      adapter.getModel().endUpdate();
+    //      adapter.refresh();
+    //    }
     val adapter = new JGraphXAdapter(graph);
-    {
+    a.foreach { seq =>
+      adapter.getModel().beginUpdate()
       val cells = adapter.getVertexToCellMap().values().toSeq
-            val size = cells.size
-            adapter.getModel().beginUpdate()
-            for (i <- 0 until size;
-            	 cell = cells(i);
-            	 y = (i / 5) * 40 + 100;
-            	 x = (i % 5) * 40 + 100) {
-              adapter.getModel().setGeometry(cell, new mxGeometry(x, y, 20, 20));
-            }
-            adapter.getModel().endUpdate()
+      cells.zip(seq).foreach {
+        case (cell, geom) => adapter.getModel().setGeometry(cell, geom);
+      }
+
+      adapter.getModel().endUpdate()
     }
 
     def createPoint(id: Int, x: Int, y: Int) {
@@ -166,11 +163,13 @@ object UiHelper {
 
           case ButtonClicked(`save`) =>
             val fc = new FileChooser(new File("/tmp"))
+            val geoms = adapter.getVertexToCellMap().values().map(adapter.getCellGeometry(_)).toSeq;
             fc.showSaveDialog(this)
             val file = fc.selectedFile;
             val dos = new ObjectOutputStream(new FileOutputStream(file))
             dos.writeObject(graph)
             dos.writeObject(adapter)
+            dos.writeObject(geoms)
             dos.close()
 
           case ButtonClicked(`load`) =>
@@ -180,8 +179,9 @@ object UiHelper {
             val dos = new ObjectInputStream(new FileInputStream(file))
             val g = dos.readObject().asInstanceOf[MyGraph]
             val a = dos.readObject().asInstanceOf[Adapter]
+            val geoms = dos.readObject().asInstanceOf[Seq[mxGeometry]]
             dos.close()
-            val newView = createTopView(isDirected, Some(g), Some(a))
+            val newView = createTopView(isDirected, Some(g), Some(geoms))
             Gapp.replace(isDirected, newView)
 
           case ButtonClicked(`b2`) =>
