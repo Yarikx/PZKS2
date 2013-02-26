@@ -43,6 +43,28 @@ public class JGraphXAdapter<V, E> extends mxGraph implements
 	/*
 	 * METHODS
 	 */
+	
+	public void updateV(V vertex){
+		getModel().beginUpdate();
+		try {
+			mxCell cell = vertexToCellMap.get(vertex);
+			cell.setValue(vertex);
+		} finally {
+			getModel().endUpdate();
+			refresh();
+		}
+	}
+	
+	public void updateE(E edge){
+		getModel().beginUpdate();
+		try {
+			mxCell cell = edgeToCellMap.get(edge);
+			cell.setValue(edge);
+		} finally {
+			getModel().endUpdate();
+			refresh();
+		}
+	}
 
 	public void addJGraphTVertex(V vertex) {
 
@@ -122,7 +144,7 @@ public class JGraphXAdapter<V, E> extends mxGraph implements
 		mxCell cell = edgeToCellMap.remove(e.getEdge());
 		removeCells(new Object[] { cell });
 	}
-
+	
 	/*
 	 * PRIVATE METHODS
 	 */

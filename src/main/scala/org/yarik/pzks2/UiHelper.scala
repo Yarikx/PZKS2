@@ -1,6 +1,6 @@
 package org.yarik.pzks2
 
-import scala.collection.JavaConversions._;
+import scala.collection.JavaConversions._
 import scala.swing.TextField
 import com.mxgraph.model.mxGeometry
 import org.jgrapht.graph.ListenableUndirectedWeightedGraph
@@ -29,6 +29,9 @@ import java.io.ObjectOutputStream
 import java.io.FileOutputStream
 import java.io.ObjectInputStream
 import java.io.FileInputStream
+import scala.swing.BoxPanel
+import scala.swing.Orientation
+import scala.swing.Label
 
 object UiHelper {
 
@@ -38,12 +41,12 @@ object UiHelper {
   type Adapter = JGraphXAdapter[Vertex, MyEdge] with Serializable
 
   abstract case class Vertex(id: Int) {
-    val value: Int
+    var value: Int = 1
     override def toString = "%d (%d)".format(id, value)
   }
 
   var valueField: TextField = null
-  implicit def int2Vertex(id: Int) = new Vertex(id) { val value = valueField.text.toInt }
+  implicit def int2Vertex(id: Int) = new Vertex(id) { value = valueField.text.toInt }
 
   def createTopView(isDirected: Boolean, g: Option[MyGraph], a: Option[Seq[mxGeometry]]): Component = {
 
@@ -55,13 +58,6 @@ object UiHelper {
 
     val graph = g.getOrElse(createMyModel)
 
-    //    val adapter = a.getOrElse(new JGraphXAdapter(graph));
-    //    {
-    //      adapter.getModel().beginUpdate();
-    //      adapter.refresh();
-    //      adapter.getModel().endUpdate();
-    //      adapter.refresh();
-    //    }
     val adapter = new JGraphXAdapter(graph);
     a.foreach { seq =>
       adapter.getModel().beginUpdate()
@@ -80,7 +76,7 @@ object UiHelper {
       graph.addVertex(v)
       //adapter.addJGraphTVertex(v)
       val cell = adapter.getVertexToCellMap().get(v)
-      cell.setGeometry(new mxGeometry(x.toDouble, y.toDouble, 20.0, 20.0))
+      cell.setGeometry(new mxGeometry(x.toDouble, y.toDouble, 30.0, 30.0))
       adapter.getModel().endUpdate()
     }
 
@@ -89,28 +85,49 @@ object UiHelper {
       graph.setEdgeWeight(edge, valueField.text.toInt)
     }
 
+    def disconnect(from: Int, to: Int) {
+      val edge = graph.getEdge(from, to);
+      graph.removeEdge(edge)
+    }
+
     val top: Component = {
 
-      val b1 = new Button("add vertex")
+      val removeEdge = new Button("remove edge")
       val from = new TextField(5)
       val to = new TextField(5)
-      val b2 = new Button("add edge")
+      val addEdge = new Button("add edge")
       val action = new Button(if (isDirected) "find cycle" else "find blind")
-      val del = new Button("delete")
+      val del = new Button("delete Vertex")
+
+      val editVertex = new Button("V")
+      val editEdge = new Button("E")
 
       val save = new Button("save")
       val load = new Button("load")
 
       val graphComp = new SGraph(adapter)
+      
+      def findV(id: Int) = graph.vertexSet().find(_.id == id)
+      def findE(from: Vertex, to: Vertex) = Option(graph.getEdge(from, to))
+      
+      def withModel(f: =>Unit)={
+//        adapter.getModel().beginUpdate();
+        f;
+//        adapter.getModel().endUpdate();
+      }
 
       val contents = new BorderPanel() {
-        val bp = this
         add(graphComp, BorderPanel.Position.Center)
-        valueField = new TextField(5)
-        valueField.text = "1"
-        add(new FlowPanel(b1, valueField, from, to, b2, action, del, save, load), BorderPanel.Position.South)
+        val value= new TextField(5)
+        valueField = value
+        value.text = "1"
+        
+        add(new BoxPanel(Orientation.Vertical) {
+          contents += new FlowPanel(value, from, to, addEdge, new Label("edit"), editVertex, editEdge)
+          contents += new FlowPanel(removeEdge, action, del, save, load)
+        }, BorderPanel.Position.South)
 
-        listenTo(b1, from, b2, action, del, graphComp.mouse.clicks, save, load)
+        listenTo(removeEdge, from, addEdge, action, del, graphComp.mouse.clicks, save, load, editVertex, editEdge)
 
         graphComp.peer.getGraphControl().addMouseListener(new MouseAdapter() {
           override def mouseClicked(evt: MouseEvent) {
@@ -127,15 +144,33 @@ object UiHelper {
         });
 
         reactions += {
-          case ButtonClicked(`b1`) =>
-            lastId += 1
+          case ButtonClicked(`removeEdge`) =>
+            disconnect(from.text.toInt, to.text.toInt)
 
-            createPoint(lastId, 300, 300)
-            println(asScalaSet(graph.vertexSet()).mkString)
-            println(graph.edgeSet().mkString(", "))
+          case ButtonClicked(`del`) =>
+            val v = findV(from.text.toInt)
+            v.foreach(graph.removeVertex(_))
 
-          case ButtonClicked(`b2`) =>
+          case ButtonClicked(`addEdge`) =>
             connect(from.text.toInt, to.text.toInt)
+
+          case ButtonClicked(`editVertex`) =>
+            findV(from.text.toInt).foreach{v =>
+              v.value = value.text.toInt
+              adapter.updateV(v)
+            }
+
+          case ButtonClicked(`editEdge`) =>
+            for{
+              from <- findV(from.text.toInt);
+              to <- findV(to.text.toInt);
+              edge <- findE(from, to);
+              weight = value.text.toDouble
+            }{
+              edge.w = weight
+              graph.setEdgeWeight(edge, weight)
+              adapter.updateE(edge)
+            }
 
           case ButtonClicked(`action`) =>
             graph match {
@@ -168,7 +203,6 @@ object UiHelper {
             val file = fc.selectedFile;
             val dos = new ObjectOutputStream(new FileOutputStream(file))
             dos.writeObject(graph)
-            dos.writeObject(adapter)
             dos.writeObject(geoms)
             dos.close()
 
@@ -178,13 +212,12 @@ object UiHelper {
             val file = fc.selectedFile;
             val dos = new ObjectInputStream(new FileInputStream(file))
             val g = dos.readObject().asInstanceOf[MyGraph]
-            val a = dos.readObject().asInstanceOf[Adapter]
             val geoms = dos.readObject().asInstanceOf[Seq[mxGeometry]]
             dos.close()
             val newView = createTopView(isDirected, Some(g), Some(geoms))
             Gapp.replace(isDirected, newView)
 
-          case ButtonClicked(`b2`) =>
+          case ButtonClicked(`addEdge`) =>
             connect(from.text.toInt, to.text.toInt)
 
         }
@@ -192,9 +225,7 @@ object UiHelper {
       contents
     }
 
-    def init(graph: Graph[Vertex, MyEdge]) {
-
-    }
+    
 
     top
   }
