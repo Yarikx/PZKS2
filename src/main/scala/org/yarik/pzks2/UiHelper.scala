@@ -32,10 +32,16 @@ import java.io.FileInputStream
 import scala.swing.BoxPanel
 import scala.swing.Orientation
 import scala.swing.Label
+import scala.swing.Dialog
+import com.mxgraph.util.mxConstants
 
 object UiHelper {
 
-  var lastId = 0;
+  def display(s: String) {
+    Dialog.showMessage(
+      message = s,
+      title = " ")
+  }
 
   type MyGraph = DefaultListenableGraph[Vertex, MyEdge] with WeightedGraph[Vertex, MyEdge] with Serializable
   type Adapter = JGraphXAdapter[Vertex, MyEdge] with Serializable
@@ -59,6 +65,11 @@ object UiHelper {
     val graph = g.getOrElse(createMyModel)
 
     val adapter = new JGraphXAdapter(graph);
+    if(!isDirected){
+      val s = adapter.getStylesheet().getDefaultEdgeStyle()
+      s.remove(mxConstants.STYLE_ENDARROW)
+    }
+
     a.foreach { seq =>
       adapter.getModel().beginUpdate()
       val cells = adapter.getVertexToCellMap().values().toSeq
@@ -92,6 +103,8 @@ object UiHelper {
 
     val top: Component = {
 
+      var lastId = 0;
+
       val removeEdge = new Button("remove edge")
       val from = new TextField(5)
       val to = new TextField(5)
@@ -106,22 +119,22 @@ object UiHelper {
       val load = new Button("load")
 
       val graphComp = new SGraph(adapter)
-      
+
       def findV(id: Int) = graph.vertexSet().find(_.id == id)
       def findE(from: Vertex, to: Vertex) = Option(graph.getEdge(from, to))
-      
-      def withModel(f: =>Unit)={
-//        adapter.getModel().beginUpdate();
+
+      def withModel(f: => Unit) = {
+        //        adapter.getModel().beginUpdate();
         f;
-//        adapter.getModel().endUpdate();
+        //        adapter.getModel().endUpdate();
       }
 
       val contents = new BorderPanel() {
         add(graphComp, BorderPanel.Position.Center)
-        val value= new TextField(5)
+        val value = new TextField(5)
         valueField = value
         value.text = "1"
-        
+
         add(new BoxPanel(Orientation.Vertical) {
           contents += new FlowPanel(value, from, to, addEdge, new Label("edit"), editVertex, editEdge)
           contents += new FlowPanel(removeEdge, action, del, save, load)
@@ -155,18 +168,18 @@ object UiHelper {
             connect(from.text.toInt, to.text.toInt)
 
           case ButtonClicked(`editVertex`) =>
-            findV(from.text.toInt).foreach{v =>
+            findV(from.text.toInt).foreach { v =>
               v.value = value.text.toInt
               adapter.updateV(v)
             }
 
           case ButtonClicked(`editEdge`) =>
-            for{
+            for {
               from <- findV(from.text.toInt);
               to <- findV(to.text.toInt);
               edge <- findE(from, to);
               weight = value.text.toDouble
-            }{
+            } {
               edge.w = weight
               graph.setEdgeWeight(edge, weight)
               adapter.updateE(edge)
@@ -177,12 +190,12 @@ object UiHelper {
               case d: DirectedGraph[_, _] =>
                 val cd = new CycleDetector(d)
                 val hasCycles = cd.detectCycles()
-                println(if (hasCycles) "has cycles" else "do not has cycles")
+                display(if (hasCycles) "has cycles" else "do not has cycles")
               case ug: UndirectedGraph[_, _] =>
                 val ci = new ConnectivityInspector(ug)
                 val sets = ci.connectedSets()
                 println("connectivity sets")
-                println(if (sets.size() == 1) "ok" else "fail")
+                display(if (sets.size() == 1) "graph connected" else "graph disconected")
             }
 
           case MouseClicked(`graphComp`, point, mod, c, t) =>
@@ -224,8 +237,6 @@ object UiHelper {
       }
       contents
     }
-
-    
 
     top
   }
