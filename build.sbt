@@ -6,6 +6,7 @@ scalaVersion := "2.10.0"
 
 libraryDependencies ++= Seq(
   "org.scala-lang" % "scala-swing" % "2.10.0",
-  "jgrapht" % "jgrapht" % "0.7.3"
+  "com.assembla.scala-incubator" % "graph-core_2.10" % "1.6.1",
+  "com.assembla.scala-incubator" % "graph-dot_2.10" % "1.6.0"
 )
 

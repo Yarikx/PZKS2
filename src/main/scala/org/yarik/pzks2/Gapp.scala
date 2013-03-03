@@ -7,8 +7,8 @@ import scala.swing.Component
 object Gapp extends SimpleSwingApplication {
 
   val tp = new TabbedPane {
-    pages += new Page("task", UiHelper.createTopView(true, None, None))
-    pages += new Page("system", UiHelper.createTopView(false, None, None))
+    pages += new Page("task", new Gui(true).content)
+    pages += new Page("system", new Gui(false).content)
   }
 
   def top = new MainFrame {
@@ -20,7 +20,7 @@ object Gapp extends SimpleSwingApplication {
 
   def replace(first: Boolean, c: Component) = {
     println("replacing")
-    val title = if(first) "task1" else "system1"
+    val title = if(first) "task" else "system"
     tp.pages.update(if(first) 0 else 1, new Page(title, c))
 
   }
