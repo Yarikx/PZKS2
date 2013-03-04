@@ -58,52 +58,6 @@ class Gui(val isDirected: Boolean) {
   private def updateTop() = content.revalidate()
 
   val content: Component = {
-
-    // def createMyModel = {
-    //   if (isDirected)
-    //     new ListenableDirectedWeightedGraph[Vertex, MyEdge](classOf[MyEdge]);
-    //   else new ListenableUndirectedWeightedGraph[Vertex, MyEdge](classOf[MyEdge]);
-    // }
-
-    // val graph = g.getOrElse(createMyModel)
-
-    // val adapter = new JGraphXAdapter(graph);
-    // if(!isDirected){
-    //   val s = adapter.getStylesheet().getDefaultEdgeStyle()
-    //   s.remove(mxConstants.STYLE_ENDARROW)
-    // }
-
-    // a.foreach { seq =>
-    //   adapter.getModel().beginUpdate()
-    //   val cells = adapter.getVertexToCellMap().values().toSeq
-    //   cells.zip(seq).foreach {
-    //     case (cell, geom) => adapter.getModel().setGeometry(cell, geom);
-    //   }
-
-    //   adapter.getModel().endUpdate()
-    // }
-
-    // def createPoint(id: Int, x: Int, y: Int) {
-    //   val v: Vertex = id
-
-    //   adapter.getModel().beginUpdate()
-    //   graph.addVertex(v)
-    //   //adapter.addJGraphTVertex(v)
-    //   val cell = adapter.getVertexToCellMap().get(v)
-    //   cell.setGeometry(new mxGeometry(x.toDouble, y.toDouble, 30.0, 30.0))
-    //   adapter.getModel().endUpdate()
-    // }
-
-    // def connect(from: Int, to: Int) {
-    //   val edge = graph.addEdge(from, to)
-    //   graph.setEdgeWeight(edge, valueField.text.toInt)
-    // }
-
-    // def disconnect(from: Int, to: Int) {
-    //   val edge = graph.getEdge(from, to);
-    //   graph.removeEdge(edge)
-    // }
-
     val top: Component = {
 
       var lastId = 0;
