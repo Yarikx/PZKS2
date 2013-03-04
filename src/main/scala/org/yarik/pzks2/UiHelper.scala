@@ -8,6 +8,7 @@ import scala.swing.event.ButtonClicked
 import scalax.collection.GraphPredef._
 import scalax.collection.edge.Implicits._
 import scalax.collection.edge.WDiEdge
+import scalax.collection.edge.WUnDiEdge
 import scalax.collection.io.dot._
 import scalax.collection.mutable.Graph
 
@@ -22,7 +23,20 @@ case class Vertex(id: Int, value: Double) {
   override def toString() = s"$id ($value)"
 }
 
-class Gui(val isDirected: Boolean) {
+class TaskUi extends Gui{
+  type Edge = WDiEdge[Vertex]
+  val isDirected = true
+}
+
+class SystemUi extends Gui{
+  type Edge = WUnDiEdge[Vertex]
+  val isDirected = false
+}
+
+abstract class Gui() {
+
+  type Edge <: WUnDiEdge[Vertex]
+  val isDirected:Boolean
 
   private val imagePath = "/tmp/graph_image.png"
   private lazy val image = new ImageIcon(imagePath)
@@ -182,11 +196,11 @@ class Gui(val isDirected: Boolean) {
           //         }
 
           case ButtonClicked(`action`) =>
-            if (isDirected) {
-              display(if (g.isAcyclic) "has no sycles" else "has cycles")
+            display(if (isDirected) {
+              if (g.isAcyclic) "has no sycles" else "has cycles"
             } else {
-
-            }
+              if(g.isConnected) "connected" else "disconected"
+            })
 
           case ButtonClicked(`save`) =>
             val fc = new FileChooser(new File("/tmp"))
