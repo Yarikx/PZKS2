@@ -23,12 +23,12 @@ case class Vertex(id: Int, value: Double) {
   override def toString() = s"$id ($value)"
 }
 
-class TaskUi extends Gui{
+object TaskUi extends Gui{
   type Edge = WDiEdge[Vertex]
   val isDirected = true
 }
 
-class SystemUi extends Gui{
+object SystemUi extends Gui{
   type Edge = WUnDiEdge[Vertex]
   val isDirected = false
 }

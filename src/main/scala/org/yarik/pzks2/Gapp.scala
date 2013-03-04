@@ -7,8 +7,8 @@ import scala.swing.Component
 object Gapp extends SimpleSwingApplication {
 
   val tp = new TabbedPane {
-    pages += new Page("task", new TaskUi().content)
-    pages += new Page("system", new SystemUi().content)
+    pages += new Page("task", TaskUi.content)
+    pages += new Page("system", SystemUi.content)
   }
 
   def top = new MainFrame {
