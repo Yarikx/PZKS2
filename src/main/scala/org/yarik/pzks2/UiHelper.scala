@@ -1,15 +1,9 @@
 package org.yarik.pzks2
 
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.FileWriter
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
+import java.io.{ File, FileInputStream, FileOutputStream, FileWriter, ObjectInputStream, ObjectOutputStream }
 import javax.swing.ImageIcon
 import scala.collection.JavaConversions._
-import scala.swing.FileChooser
-import scala.swing.{ BorderPanel, BoxPanel, Button, Component, FlowPanel, Label, Orientation, TextField }
+import scala.swing.{ BorderPanel, BoxPanel, Button, Component, Dialog, FileChooser, FlowPanel, Label, Orientation, TextField }
 import scala.swing.event.ButtonClicked
 import scalax.collection.GraphPredef._
 import scalax.collection.edge.Implicits._
