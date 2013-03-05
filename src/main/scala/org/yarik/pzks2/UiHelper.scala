@@ -1,14 +1,14 @@
 package org.yarik.pzks2
 
+import java.awt.Graphics2D
 import java.io.{ File, FileInputStream, FileOutputStream, FileWriter, ObjectInputStream, ObjectOutputStream }
 import javax.swing.ImageIcon
 import scala.collection.JavaConversions._
 import scala.swing.{ BorderPanel, BoxPanel, Button, Component, Dialog, FileChooser, FlowPanel, Label, Orientation, TextField }
 import scala.swing.event.ButtonClicked
 import scalax.collection.GraphPredef._
+import scalax.collection.edge.{ WDiEdge, WUnDiEdge }
 import scalax.collection.edge.Implicits._
-import scalax.collection.edge.WDiEdge
-import scalax.collection.edge.WUnDiEdge
 import scalax.collection.io.dot._
 import scalax.collection.mutable.Graph
 
@@ -18,30 +18,39 @@ object UiHelper {
 
 // type MyGraph = DefaultListenableGraph[Vertex, MyEdge] with WeightedGraph[Vertex, MyEdge] with Serializable
 //  type Adapter = JGraphXAdapter[Vertex, MyEdge] with Serializable
-
-case class Vertex(id: Int, value: Double) {
+object Vertex {
+  def apply(id: Int, v: Int) =
+    new Vertex(id) { value = v }
+}
+case class Vertex(id: Int) {
+  var value: Double = 0
   override def toString() = s"$id ($value)"
 }
 
-object TaskUi extends Gui{
-  type Edge = WDiEdge[Vertex]
+object TaskUi extends Gui {
   val isDirected = true
 }
 
-object SystemUi extends Gui{
-  type Edge = WUnDiEdge[Vertex]
+object SystemUi extends Gui {
   val isDirected = false
 }
 
 abstract class Gui() {
+  val selfGui = this
 
-  type Edge <: WUnDiEdge[Vertex]
-  val isDirected:Boolean
+  val isDirected: Boolean
 
   private val imagePath = "/tmp/graph_image.png"
   private lazy val image = new ImageIcon(imagePath)
 
   val g: Graph[Vertex, WDiEdge] = Graph()
+
+  def createGet(ef: TextField) = () =>
+    try {
+      Some(ef.text.toInt)
+    } catch {
+      case _: Throwable => None
+    }
 
   def findV(id: Int): Option[Vertex] =
     g.nodes.find((v: Vertex) => v.id == id).map(_.value)
@@ -69,7 +78,38 @@ abstract class Gui() {
       title = " ")
   }
 
-  private def updateTop() = content.revalidate()
+  val graphComp = new Label("this is graph") {
+    override def paint(g: Graphics2D) {
+      if (icon != null) {
+        icon.paintIcon(this.peer, g, 0, 0)
+      } else {
+        super.paint(g)
+      }
+    }
+  };
+
+  def update() {
+    println(g)
+    val root = DotRootGraph(isDirected, None, false, Seq())
+    val f = edgeTransformer(root) _
+    val dot = g.toDot(root, f, iNodeTransformer = Some(nodeTransformer(root) _))
+    //File magic
+    val file = new FileWriter("/tmp/pzks.dot")
+    file.write(dot)
+    file.close()
+
+    val r = Runtime.getRuntime()
+    r.exec("dot -Tpng -o " + imagePath + " /tmp/pzks.dot ").waitFor()
+    //r.exec("eog /tmp/pzks.png")
+
+    image.getImage().flush()
+    println("image size = %dx%d" format (image.getIconWidth, image.getIconHeight()))
+    graphComp.text = ""
+    graphComp.icon = image
+    graphComp.repaint
+    UiHelper.lasGraph = g
+    content.revalidate()
+  }
 
   val content: Component = {
     val top: Component = {
@@ -90,42 +130,10 @@ abstract class Gui() {
       val save = new Button("save")
       val load = new Button("load")
 
-      val graphComp = new Label("this is graph");
-
-      def update() {
-        println(g)
-        val root = DotRootGraph(isDirected, None, false, Seq())
-        val f = edgeTransformer(root) _
-        val dot = g.toDot(root, f, iNodeTransformer = Some(nodeTransformer(root) _))
-        //File magic
-        val file = new FileWriter("/tmp/pzks.dot")
-        file.write(dot)
-        file.close()
-
-        val r = Runtime.getRuntime()
-        r.exec("dot -Tpng -o " + imagePath + " /tmp/pzks.dot ").waitFor()
-        //r.exec("eog /tmp/pzks.png")
-
-        image.getImage().flush()
-        println("image size = %dx%d" format (image.getIconWidth, image.getIconHeight()))
-        graphComp.text = ""
-        graphComp.icon = image
-        graphComp.repaint
-        UiHelper.lasGraph = g
-        updateTop()
-      }
-
       val contents = new BorderPanel() {
         add(graphComp, BorderPanel.Position.Center)
         val valueField = new TextField(5)
         valueField.text = "1"
-
-        def createGet(ef: TextField) = () =>
-          try {
-            Some(ef.text.toInt)
-          } catch {
-            case _: Throwable => None
-          }
 
         val from = createGet(fromField)
         val to = createGet(toField)
@@ -136,6 +144,7 @@ abstract class Gui() {
         add(new BoxPanel(Orientation.Vertical) {
           contents += new FlowPanel(valueField, fromField, toField, l("add"), addVertex, addEdge, new Label("edit"), editVertex, editEdge)
           contents += new FlowPanel(removeEdge, action, del, save, load)
+          contents += new Generator(selfGui).createControls
         }, BorderPanel.Position.South)
 
         listenTo(addVertex, removeEdge, fromField, addEdge, action, del, graphComp.mouse.clicks, save, load, editVertex, editEdge)
@@ -199,7 +208,7 @@ abstract class Gui() {
             display(if (isDirected) {
               if (g.isAcyclic) "has no sycles" else "has cycles"
             } else {
-              if(g.isConnected) "connected" else "disconected"
+              if (g.isConnected) "connected" else "disconected"
             })
 
           case ButtonClicked(`save`) =>
