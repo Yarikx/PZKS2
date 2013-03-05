@@ -1,17 +1,17 @@
 package org.yarik.pzks2
 
-import java.awt.Graphics2D
+import UiHelper._
+import java.awt.{ Dimension, Graphics2D }
 import java.io.{ File, FileInputStream, FileOutputStream, FileWriter, ObjectInputStream, ObjectOutputStream }
 import javax.swing.ImageIcon
 import scala.collection.JavaConversions._
-import scala.swing.{ BorderPanel, BoxPanel, Button, Component, Dialog, FileChooser, FlowPanel, Label, Orientation, TextField }
+import scala.swing.{ BorderPanel, BoxPanel, Button, Component, Dialog, FileChooser, FlowPanel, Label, Orientation, ScrollPane, TextField }
 import scala.swing.event.ButtonClicked
 import scalax.collection.GraphPredef._
 import scalax.collection.edge.{ WDiEdge, WUnDiEdge }
 import scalax.collection.edge.Implicits._
 import scalax.collection.io.dot._
 import scalax.collection.mutable.Graph
-import UiHelper._
 
 object UiHelper {
   var lasGraph: Graph[Vertex, WDiEdge] = null
@@ -33,8 +33,6 @@ object UiHelper {
   def l(s: String) = new Label(s)
 }
 
-// type MyGraph = DefaultListenableGraph[Vertex, MyEdge] with WeightedGraph[Vertex, MyEdge] with Serializable
-//  type Adapter = JGraphXAdapter[Vertex, MyEdge] with Serializable
 object Vertex {
   def apply(id: Int, v: Int) =
     new Vertex(id) { value = v }
@@ -116,6 +114,7 @@ abstract class Gui() {
     println("image size = %dx%d" format (image.getIconWidth, image.getIconHeight()))
     graphComp.text = ""
     graphComp.icon = image
+    graphComp.preferredSize = new Dimension(1000, 1000)
     graphComp.repaint
     UiHelper.lasGraph = g
     content.revalidate()
@@ -141,7 +140,7 @@ abstract class Gui() {
       val load = new Button("load")
 
       val contents = new BorderPanel() {
-        add(graphComp, BorderPanel.Position.Center)
+        add(new ScrollPane(graphComp), BorderPanel.Position.Center)
         val valueField = new TextField(5)
         valueField.text = "1"
 

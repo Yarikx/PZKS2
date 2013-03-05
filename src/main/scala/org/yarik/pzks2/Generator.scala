@@ -1,15 +1,13 @@
 package org.yarik.pzks2
 
+import UiHelper._
 import scala.annotation.tailrec
-import scala.swing.Button
-import scala.swing.FlowPanel
-import scala.swing.TextField
+import scala.swing.{ Button, FlowPanel, TextField }
 import scala.swing.event.ButtonClicked
 import scala.util.Random
-import scalax.collection.mutable.Graph
-import scalax.collection.edge.Implicits._
 import scalax.collection.GraphPredef._
-import UiHelper._;
+import scalax.collection.edge.Implicits._
+import scalax.collection.mutable.Graph
 
 class Generator(gui: Gui) {
   def g = gui.g
@@ -18,7 +16,7 @@ class Generator(gui: Gui) {
 
   def createControls = {
     val numberField = new TextField(5) { text = "10" }
-    val koefField = new TextField(5) { text = "1.5" }
+    val koefField = new TextField(5) { text = "0.5" }
 
     val number = createGet(numberField)
     val koef = createGetD(koefField)
@@ -46,7 +44,7 @@ class Generator(gui: Gui) {
     val mid = (lo + hi) / 2
     val vs = (0 until n).map(Vertex(_, r.nextInt(mid - lo) + lo))
     val vsum = vs.map(_.value).sum
-    val esum = (vsum * k - vsum).toInt
+    val esum = (vsum / k - vsum).toInt
 
     @tailrec
     def genVals(collected: List[Int]): List[Int] = {
@@ -63,38 +61,28 @@ class Generator(gui: Gui) {
 
     val evalues = genVals(List())
 
-    @tailrec
-    def genFromTo(acum: List[(Int, Int)]): List[(Int, Int)] = {
-      val from = r.nextInt(n - 1) + 1
-      val to = r.nextInt(from)
-
-      val t = (from, to)
-
-      if (acum.contains(t)) {
-        genFromTo(acum)
-      } else {
-        val list = t :: acum
-        if (list.size >= evalues.size) {
-          list
-        } else {
-          genFromTo(list)
+    val edges =
+      evalues
+        .map { v =>
+          val from = r.nextInt(n - 1) + 1
+          val to = r.nextInt(from)
+          (v, (from, to))
         }
-      }
-    }
-
-    val edges = evalues.zip(genFromTo(List())).map {
-      case (v, (fromI, toI)) =>
-        val from = vs(fromI)
-        val to = vs(toI)
-        from ~> to % v
-    }
+        .groupBy { case (_, t) => t }
+        .map {
+          case ((f, t), es) =>
+            val from = vs(f)
+            val to = vs(t)
+            val value = es.map(_._1).sum
+            from ~> to % value
+        }
 
     g.clear
     vs.foreach(g += _)
     edges.foreach(g += _)
     println(s"values sum = $vsum")
     println(s"edges sum = $esum")
-    println(esum / vsum + 1)
+    println(vsum / (esum + vsum))
     gui.update
   }
 }

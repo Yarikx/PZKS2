@@ -1,8 +1,7 @@
 package org.yarik.pzks2
 
-import scala.swing.{ Dimension, MainFrame, SimpleSwingApplication, TabbedPane }
+import scala.swing.{ Component, Dimension, MainFrame, SimpleSwingApplication, TabbedPane }
 import scala.swing.TabbedPane.Page
-import scala.swing.Component
 
 object Gapp extends SimpleSwingApplication {
 
@@ -20,8 +19,8 @@ object Gapp extends SimpleSwingApplication {
 
   def replace(first: Boolean, c: Component) = {
     println("replacing")
-    val title = if(first) "task" else "system"
-    tp.pages.update(if(first) 0 else 1, new Page(title, c))
+    val title = if (first) "task" else "system"
+    tp.pages.update(if (first) 0 else 1, new Page(title, c))
 
   }
 
