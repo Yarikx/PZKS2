@@ -9,6 +9,7 @@ import scala.util.Random
 import scalax.collection.mutable.Graph
 import scalax.collection.edge.Implicits._
 import scalax.collection.GraphPredef._
+import UiHelper._;
 
 class Generator(gui: Gui) {
   def g = gui.g
@@ -24,7 +25,7 @@ class Generator(gui: Gui) {
 
     val genButton = new Button("generate")
 
-    new FlowPanel(koefField, genButton) {
+    new FlowPanel(l("number"), numberField, l("koef"), koefField, genButton) {
       listenTo(genButton)
       reactions += {
         case ButtonClicked(`genButton`) =>
@@ -38,20 +39,6 @@ class Generator(gui: Gui) {
     }
   }
 
-  def createGetD(ef: TextField) = () =>
-    try {
-      Some(ef.text.toDouble)
-    } catch {
-      case _: Throwable => None
-    }
-
-  def createGet(ef: TextField) = () =>
-    try {
-      Some(ef.text.toInt)
-    } catch {
-      case _: Throwable => None
-    }
-
   def generateGraph(n: Int, k: Double, gui: Gui) {
     val lo = 10
     val hi = 50
@@ -59,7 +46,7 @@ class Generator(gui: Gui) {
     val mid = (lo + hi) / 2
     val vs = (0 until n).map(Vertex(_, r.nextInt(mid - lo) + lo))
     val vsum = vs.map(_.value).sum
-    val esum = (vsum * k).toInt
+    val esum = (vsum * k - vsum).toInt
 
     @tailrec
     def genVals(collected: List[Int]): List[Int] = {
@@ -76,19 +63,38 @@ class Generator(gui: Gui) {
 
     val evalues = genVals(List())
 
-    val edges = evalues.map{v =>
-      val fromI = r.nextInt(n - 1)+1
-      val toI = r.nextInt(fromI)
+    @tailrec
+    def genFromTo(acum: List[(Int, Int)]): List[(Int, Int)] = {
+      val from = r.nextInt(n - 1) + 1
+      val to = r.nextInt(from)
 
-      val from = vs(fromI)
-      val to = vs(toI)
+      val t = (from, to)
 
-      from ~> to %v
+      if (acum.contains(t)) {
+        genFromTo(acum)
+      } else {
+        val list = t :: acum
+        if (list.size >= evalues.size) {
+          list
+        } else {
+          genFromTo(list)
+        }
+      }
+    }
+
+    val edges = evalues.zip(genFromTo(List())).map {
+      case (v, (fromI, toI)) =>
+        val from = vs(fromI)
+        val to = vs(toI)
+        from ~> to % v
     }
 
     g.clear
     vs.foreach(g += _)
     edges.foreach(g += _)
+    println(s"values sum = $vsum")
+    println(s"edges sum = $esum")
+    println(esum / vsum + 1)
     gui.update
   }
 }

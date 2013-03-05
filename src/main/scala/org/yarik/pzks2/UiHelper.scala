@@ -11,9 +11,26 @@ import scalax.collection.edge.{ WDiEdge, WUnDiEdge }
 import scalax.collection.edge.Implicits._
 import scalax.collection.io.dot._
 import scalax.collection.mutable.Graph
+import UiHelper._
 
 object UiHelper {
   var lasGraph: Graph[Vertex, WDiEdge] = null
+
+  def createGetD(ef: TextField) = () =>
+    try {
+      Some(ef.text.toDouble)
+    } catch {
+      case _: Throwable => None
+    }
+
+  def createGet(ef: TextField) = () =>
+    try {
+      Some(ef.text.toInt)
+    } catch {
+      case _: Throwable => None
+    }
+
+  def l(s: String) = new Label(s)
 }
 
 // type MyGraph = DefaultListenableGraph[Vertex, MyEdge] with WeightedGraph[Vertex, MyEdge] with Serializable
@@ -44,13 +61,6 @@ abstract class Gui() {
   private lazy val image = new ImageIcon(imagePath)
 
   val g: Graph[Vertex, WDiEdge] = Graph()
-
-  def createGet(ef: TextField) = () =>
-    try {
-      Some(ef.text.toInt)
-    } catch {
-      case _: Throwable => None
-    }
 
   def findV(id: Int): Option[Vertex] =
     g.nodes.find((v: Vertex) => v.id == id).map(_.value)
@@ -138,8 +148,6 @@ abstract class Gui() {
         val from = createGet(fromField)
         val to = createGet(toField)
         val value = createGet(valueField)
-
-        def l(s: String) = new Label(s)
 
         add(new BoxPanel(Orientation.Vertical) {
           contents += new FlowPanel(valueField, fromField, toField, l("add"), addVertex, addEdge, new Label("edit"), editVertex, editEdge)
