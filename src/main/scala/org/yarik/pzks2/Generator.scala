@@ -15,31 +15,38 @@ class Generator(gui: Gui) {
   val r = new Random
 
   def createControls = {
+    val loField = new TextField(5) { text = "10" }
+    val hiField = new TextField(5) { text = "50" }
     val numberField = new TextField(5) { text = "10" }
     val koefField = new TextField(5) { text = "0.5" }
 
     val number = createGet(numberField)
     val koef = createGetD(koefField)
+    val low = createGet(loField)
+    val high = createGet(hiField)
 
     val genButton = new Button("generate")
 
-    new FlowPanel(l("number"), numberField, l("koef"), koefField, genButton) {
+    new FlowPanel(l("lo"), loField, l("hi"), hiField, l("number"), numberField, l("koef"), koefField, genButton) {
       listenTo(genButton)
       reactions += {
         case ButtonClicked(`genButton`) =>
           for {
             n <- number()
             k <- koef()
+            l <- low()
+            h <- high()
+            if h > l
+            if n > 1
+            if k > 0
           } {
-            generateGraph(n, k, gui)
+            generateGraph(n, l, h, k, gui)
           }
       }
     }
   }
 
-  def generateGraph(n: Int, k: Double, gui: Gui) {
-    val lo = 10
-    val hi = 50
+  def generateGraph(n: Int, lo: Int, hi: Int, k: Double, gui: Gui) {
 
     val mid = (lo + hi) / 2
     val vs = (0 until n).map(Vertex(_, r.nextInt(mid - lo) + lo))
@@ -62,7 +69,7 @@ class Generator(gui: Gui) {
     val evalues = genVals(List())
 
     val edges =
-      evalues
+      evalues.view
         .map { v =>
           val from = r.nextInt(n - 1) + 1
           val to = r.nextInt(from)
