@@ -194,23 +194,26 @@ abstract class Gui() {
               update()
             }
 
-          //       case ButtonClicked(`editVertex`) =>
-          //         findV(from.text.toInt).foreach { v =>
-          //           v.value = value.text.toInt
-          //           adapter.updateV(v)
-          //         }
+          case ButtonClicked(`editVertex`) =>
+            for (f <- from(); v <- value(); ver <- findV(f)) {
+              ver.value = v
+              update()
+            }
 
-          //       case ButtonClicked(`editEdge`) =>
-          //         for {
-          //           from <- findV(from.text.toInt);
-          //           to <- findV(to.text.toInt);
-          //           edge <- findE(from, to);
-          //           weight = value.text.toDouble
-          //         } {
-          //           edge.w = weight
-          //           graph.setEdgeWeight(edge, weight)
-          //           adapter.updateE(edge)
-          //         }
+          case ButtonClicked(`editEdge`) =>
+            for (
+              f <- from();
+              t <- to();
+              v <- value();
+              v1 <- findV(f);
+              v2 <- findV(t);
+              edge <- findE(v1, v2)
+            ) {
+              val newEdge = v1 ~> v2 % v
+              g -= edge
+              g += newEdge
+              update()
+            }
 
           case ButtonClicked(`action`) =>
             display(if (isDirected) {
