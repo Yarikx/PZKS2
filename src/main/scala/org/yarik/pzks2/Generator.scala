@@ -51,7 +51,11 @@ class Generator(gui: Gui) {
     val mid = (lo + hi) / 2
     val vs = (0 until n).map(Vertex(_, r.nextInt(mid - lo) + lo))
     val vsum = vs.map(_.value).sum
-    val esum = (vsum / k - vsum).toInt
+    val esum = {
+      val d = (vsum / k - vsum)
+      val i = d.toInt
+      if(d-i > 0) i+1 else i
+    }
 
     @tailrec
     def genVals(collected: List[Int]): List[Int] = {
