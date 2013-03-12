@@ -60,11 +60,11 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
       (node, sum, n)
     }
 
-    val bad = for{
+    val bad = for {
       node <- g.nodes
       goodNodes = good.map(_._1)
       if !goodNodes.contains(node)
-    }yield{
+    } yield {
       val sum = node.value.value
       println(s"for node $node, length = 0 and sum = $sum")
       (node, sum, 0)
@@ -73,14 +73,13 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
     val all = good ++ bad
     val maxW = all.maxBy(_._2)._2
     val maxP = all.maxBy(_._3)._3.toDouble
-    val res = all.map{
-      case (node, w,n) =>
-        node -> (w/maxW + n.toDouble/maxP)
-    }.toMap
+    val res = all.map {
+      case (node, w, n) =>
+        node -> (w / maxW + n.toDouble / maxP)
+    }.toMap.toList.sortBy(_._2).reverse
 
-    val sorted = g.nodes.toList.sortBy(res(_)).reverse
     println("===============")
-    sorted.foreach(println)
+    res.map{ case (node, w) => s"${node.value.id} -> $w"}.foreach(println)
 
   }
 
