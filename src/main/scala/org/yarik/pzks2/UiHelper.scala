@@ -152,6 +152,7 @@ abstract class Gui() {
           contents += new FlowPanel(valueField, fromField, toField, l("add"), addVertex, addEdge, new Label("edit"), editVertex, editEdge)
           contents += new FlowPanel(removeEdge, action, del, save, load)
           contents += new Generator(selfGui).createControls
+          contents += new Sorter(g).panel
         }, BorderPanel.Position.South)
 
         listenTo(addVertex, removeEdge, fromField, addEdge, action, del, graphComp.mouse.clicks, save, load, editVertex, editEdge)

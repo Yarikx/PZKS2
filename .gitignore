@@ -4,4 +4,4 @@ target/
 *.swp
 .cache
 *#
-.classpass
+.classpath
