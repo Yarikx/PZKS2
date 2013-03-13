@@ -43,6 +43,27 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
 
     val result = recurNumNodes(0, dst.toSet, startMap)
 
+    type Path = List[NodeT]
+    @tailrec
+    def findAllPathes(cur: Set[Path]): Set[Path] = {
+      val np = cur.flatMap { path =>
+        val sucs = path.head.diSuccessors.toList
+        val newPaths = sucs.map(x => x :: path)
+        println(s"new path = $newPaths")
+        newPaths
+      }.toSet
+      if (np.isEmpty) {
+        cur
+      } else {
+        findAllPathes(np)
+      }
+    }
+
+    def bestPath(node: NodeT)={
+      findAllPathes(Set(List(node)))
+        .maxBy(_.map(_.value.value).sum)
+    }
+
     val good = for {
       node <- g.nodes
       d <- dst
@@ -53,33 +74,26 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
         n1.pathTo(n2, edgeFilter = _ != edge).isEmpty
       })
     } yield {
-      val sum = path.nodes.map(_.value.value).sum
-      val n = result(node)
-      println(s"for node $node, length = $n and sum = $sum")
-
-      (node, sum, n)
+      val n = result(node) + 1
+      (node, n)
     }
 
-    val bad = for {
-      node <- g.nodes
-      goodNodes = good.map(_._1)
-      if !goodNodes.contains(node)
-    } yield {
-      val sum = node.value.value
-      println(s"for node $node, length = 0 and sum = $sum")
-      (node, sum, 0)
-    }
+    val bad = (g.nodes -- good.map(_._1)).map(x => (x, 1))
+
+
 
     val all = good ++ bad
-    val maxW = all.maxBy(_._2)._2
-    val maxP = all.maxBy(_._3)._3.toDouble
+    val sums = g.nodes.map(x=> (x, bestPath(x).map(_.value.value).sum)).toMap
+    val maxW = sums.values.max
+    val maxP = all.maxBy(_._2)._2.toDouble
+
     val res = all.map {
-      case (node, w, n) =>
-        node -> (w / maxW + n.toDouble / maxP)
+      case (node, n) =>
+        node -> (sums(node).toDouble / maxW + n.toDouble / maxP)
     }.toMap.toList.sortBy(_._2).reverse
 
     println("===============")
-    res.map{ case (node, w) => s"${node.value.id} -> $w"}.foreach(println)
+    res.map { case (node, w) => s"${node.value.id} -> $w" }.foreach(println)
 
   }
 
