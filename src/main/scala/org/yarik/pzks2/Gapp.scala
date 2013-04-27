@@ -2,9 +2,12 @@ package org.yarik.pzks2
 
 import scala.swing.{ Component, Dimension, MainFrame, SimpleSwingApplication, TabbedPane }
 import scala.swing.TabbedPane.Page
+import scala.swing.BorderPanel
 
 object Gapp extends SimpleSwingApplication {
 
+  val sched = new GraphSched()
+  
   val tp = new TabbedPane {
     pages += new Page("task", TaskUi.content)
     pages += new Page("system", SystemUi.content)
@@ -12,7 +15,10 @@ object Gapp extends SimpleSwingApplication {
 
   def top = new MainFrame {
     title = "Graphs"
-    contents = tp
+    contents = new BorderPanel(){
+      add(tp, BorderPanel.Position.Center)
+      add(sched.panel, BorderPanel.Position.South)
+    }
     size = new Dimension(700, 600)
   }
 

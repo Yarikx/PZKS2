@@ -8,6 +8,7 @@ import scala.util.Random
 import scalax.collection.GraphPredef._
 import scalax.collection.edge.Implicits._
 import scalax.collection.mutable.Graph
+import scalax.collection.edge.WDiEdge
 
 class Generator(gui: Gui) {
   def g = gui.g
@@ -54,7 +55,7 @@ class Generator(gui: Gui) {
     val esum = {
       val d = (vsum / k - vsum)
       val i = d.toInt
-      if(d-i > 0) i+1 else i
+      if (d - i > 0) i + 1 else i
     }
 
     @tailrec
@@ -70,30 +71,38 @@ class Generator(gui: Gui) {
       }
     }
 
-    val evalues = genVals(List())
+    @tailrec def generatee {
+      val evalues = genVals(List())
 
-    val edges =
-      evalues.view
-        .map { v =>
-          val from = r.nextInt(n - 1) + 1
-          val to = r.nextInt(from)
-          (v, (from, to))
-        }
-        .groupBy { case (_, t) => t }
-        .map {
-          case ((f, t), es) =>
-            val from = vs(f)
-            val to = vs(t)
-            val value = es.map(_._1).sum
-            from ~> to % value
-        }
+      val edges =
+        evalues.view
+          .map { v =>
+            val from = r.nextInt(n - 1) + 1
+            val to = r.nextInt(from)
+            (v, (from, to))
+          }
+          .groupBy { case (_, t) => t }
+          .map {
+            case ((f, t), es) =>
+              val from = vs(f)
+              val to = vs(t)
+              val value = es.map(_._1).sum
+              from ~> to % value
+          }
 
-    g.clear
-    vs.foreach(g += _)
-    edges.foreach(g += _)
-    println(s"values sum = $vsum")
-    println(s"edges sum = $esum")
-    println(vsum / (esum + vsum))
-    gui.update
+      g.clear
+      vs.foreach(g += _)
+      edges.foreach(g += _)
+      if (!gui.isDirected && !g.isConnected) generatee
+      else {
+        println(s"values sum = $vsum")
+        println(s"edges sum = $esum")
+        println(vsum / (esum + vsum))
+        gui.update
+      }
+    }
+    
+    generatee
+
   }
 }

@@ -55,7 +55,8 @@ abstract class Gui() {
 
   val isDirected: Boolean
 
-  private val imagePath = "/tmp/graph_image.png"
+  private[this] lazy val pref = if(isDirected) "d" else "u" 
+  private lazy val imagePath = s"/tmp/graph_image_$pref.png"
   private lazy val image = new ImageIcon(imagePath)
 
   val g: Graph[Vertex, WDiEdge] = Graph()
@@ -102,12 +103,14 @@ abstract class Gui() {
     val f = edgeTransformer(root) _
     val dot = g.toDot(root, f, iNodeTransformer = Some(nodeTransformer(root) _))
     //File magic
-    val file = new FileWriter("/tmp/pzks.dot")
+    val fileName = s"/tmp/${pref}_pzks.dot"
+    val file = new FileWriter(fileName)
     file.write(dot)
     file.close()
 
     val r = Runtime.getRuntime()
-    r.exec("dot -Tpng -o " + imagePath + " /tmp/pzks.dot ").waitFor()
+    
+    r.exec(s"dot -Tpng -o $imagePath $fileName").waitFor()
     //r.exec("eog /tmp/pzks.png")
 
     image.getImage().flush()
