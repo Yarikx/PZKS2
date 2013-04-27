@@ -14,7 +14,6 @@ object Gapp extends SimpleSwingApplication {
     title = "Graphs"
     contents = tp
     size = new Dimension(700, 600)
-
   }
 
   def replace(first: Boolean, c: Component) = {

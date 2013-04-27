@@ -26,11 +26,11 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
 
     type NodeT = Graph[Vertex, WDiEdge]#NodeT
 
-    val dst = g.nodes.filter(_.outDegree == 0)
+    val dst = g.nodes.filter(_.inDegree == 0)
 
     def recurNumNodes[A <: NodeT](step: Int, cur: Set[NodeT], acum: Map[NodeT, Int]): Map[NodeT, Int] = {
       val curStep = step + 1
-      val set: Set[NodeT] = cur.flatMap(_.diPredecessors.toList)
+      val set: Set[NodeT] = cur.flatMap(_.diSuccessors.toList)
       if (!set.isEmpty) {
         val map = set.foldLeft(acum)((m, x) => m.+(x -> (1 + step)))
         recurNumNodes(curStep, set, map)
@@ -42,6 +42,9 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
     val startMap: Map[NodeT, Int] = dst.map(n => n -> 0).toMap
 
     val result = recurNumNodes(0, dst.toSet, startMap)
+    println("+++++++++++")
+    result.foreach(println)
+    println("+++++++++++")
 
     type Path = List[NodeT]
     @tailrec
@@ -67,7 +70,7 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
     val good = for {
       node <- g.nodes
       d <- dst
-      path <- node.pathTo(d, edgeFilter = { edge =>
+      path <- d.pathTo(node, edgeFilter = { edge =>
         val n1 = edge.from
         val n2 = edge.to
 
@@ -82,18 +85,17 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
 
 
 
-    val all = good ++ bad
+    val all = (good ++ bad).toMap
     val sums = g.nodes.map(x=> (x, bestPath(x).map(_.value.value).sum)).toMap
     val maxW = sums.values.max
     val maxP = all.maxBy(_._2)._2.toDouble
+    val connectivity = g.nodes.map(x => x -> (x.diSuccessors.size + x.diPredecessors.size)).toMap
 
-    val res = all.map {
-      case (node, n) =>
-        node -> (sums(node).toDouble / maxW + n.toDouble / maxP)
-    }.toMap.toList.sortBy(_._2).reverse
+    val sorted = g.nodes.toList.sortBy(connectivity(_)).reverse.sortBy(all(_))
 
-    println("===============")
-    res.map { case (node, w) => s"${node.value.id} -> $w" }.foreach(println)
+    sorted.foreach{ node =>
+      println(s"node ${node.value.id} has connectivity ${connectivity(node)} and longestPath ${all(node)}")
+    }
 
   }
 
