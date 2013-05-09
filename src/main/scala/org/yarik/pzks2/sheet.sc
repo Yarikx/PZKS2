@@ -8,24 +8,37 @@ import scalax.collection.mutable.Graph
 object sheet {
   println("Welcome to the Scala worksheet")       //> Welcome to the Scala worksheet
   
+  val tg = {
+  	val v1 = Vertex(1); v1.value = 3
+  	val v2 = Vertex(2); v1.value = 2
+  	val v3 = Vertex(3); v1.value = 1
+  	
+  	Graph(v1 ~> v3 % 1, v2 ~> v3 % 2)
+  }                                               //> tg  : scalax.collection.mutable.Graph[org.yarik.pzks2.Vertex,scalax.collecti
+                                                  //| on.edge.WDiEdge] = Graph(1 (1), 2 (0), 3 (0), 1 (1)~>3 (0) %1, 2 (0)~>3 (0) 
+                                                  //| %2)
   
-  val g:Graph[Int, WDiEdge] = Graph[Int, WDiEdge](1~>2%1)
-                                                  //> g  : scalax.collection.mutable.Graph[Int,scalax.collection.edge.WDiEdge] = G
-                                                  //| raph(1, 2, 1~>2 %1)
-  val q = g.edges.map{edge =>
-		val l = edge.from.value
-		val r = edge.to.value
-		val w = edge.value.weight
-		l ~ r % w
-  }.toArray                                       //> q  : Array[scalax.collection.edge.WUnDiEdge[Int]] = Array(1~2 %1)
+  val sg = {
+  	val v1 = Vertex(1);
+  	val v2 = Vertex(2);
+  	val v3 = Vertex(3);
+  	
+  	Graph(v1 ~> v3 % 1, v2 ~> v3 % 2)
+  }                                               //> sg  : scalax.collection.mutable.Graph[org.yarik.pzks2.Vertex,scalax.collecti
+                                                  //| on.edge.WDiEdge] = Graph(1 (0), 2 (0), 3 (0), 1 (0)~>3 (0) %1, 2 (0)~>3 (0) 
+                                                  //| %2)
   
-  val un = Graph[Int, WUnDiEdge](q:_*)            //> un  : scalax.collection.mutable.Graph[Int,scalax.collection.edge.WUnDiEdge] 
-                                                  //| = Graph(1, 2, 1~2 %1)
+  val sched = new GraphSched                      //> sched  : org.yarik.pzks2.GraphSched = org.yarik.pzks2.GraphSched@e893b10
+  val env = sched.transformAndSchedule(sg, tg)    //> node 1 has maxW 1
+                                                  //| node 3 has maxW 0
+                                                  //| node 2 has maxW 0
+                                                  //| env  : org.yarik.pzks2.Modeller.Env = Env(List(P[3] slots:[W(task:1(1))] dat
+                                                  //| a:, P[1] slots:[W(task:2(0))] data:, P[2] slots:[Idle] data:))
   
+  env.lines.foreach(println)                      //> P[3] slots:[W(task:1(1))] data:
+                                                  //| P[1] slots:[W(task:2(0))] data:
+                                                  //| P[2] slots:[Idle] data:
   
-  Graph(1~2)                                      //> res0: scalax.collection.mutable.Graph[Int,scalax.collection.GraphEdge.UnDiEd
-                                                  //| ge] = Graph(1, 2, 1~2)
-                           
   
   
 }
