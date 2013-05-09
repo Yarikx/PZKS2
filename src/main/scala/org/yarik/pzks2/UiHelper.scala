@@ -38,7 +38,7 @@ object Vertex {
     new Vertex(id) { value = v }
 }
 case class Vertex(id: Int) {
-  var value: Double = 0
+  var value: Int = 0
   override def toString() = s"$id ($value)"
 }
 

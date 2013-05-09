@@ -10,6 +10,7 @@ import scala.swing.FlowPanel
 import scala.swing.event.ButtonClicked
 import UiHelper._
 import scalax.collection.GraphEdge.UnDiEdge
+import SchedUtils._
 
 class GraphSched() {
 
@@ -45,8 +46,7 @@ class GraphSched() {
 
     val sortedSystem = systemGraph.nodes.toList.sortBy(x => x.degree).map(_.value).reverse
 
-    println(sorted)
-    println(sortedSystem)
+    println(tasks(sorted, taskGraph))
   }
 
 }
@@ -54,20 +54,21 @@ class GraphSched() {
 case class Proc(id: Int)
 object Modeller {
   type Time = Int
-  
-  class Dep (task: Task, value: Time)
-  class Task(id: Int, w: Time, dependsOn: Seq[Dep])
-  
+
+  //tasks
+  case class Dep(task: Task, value: Time)
+  case class Task(id: Int, w: Time, dependsOn: Seq[Dep])
+  //state machine
   abstract class State
   object Idle extends State
   case class Work(start: Time, w: Time) extends State
-  case class Move(fromTaslfrom: Proc, to: Proc, w: Time) extends State
+  case class Move(task: Task, from: Proc, to: Proc, w: Time) extends State
 
   class Line(
     val proc: Proc,
-    val states: Seq[State])
+    val slots: Seq[State])
 
-  class Env(procs: List[Proc]) {
+  class Env(procs: List[Line]) {
 
   }
 }
