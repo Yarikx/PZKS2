@@ -21,6 +21,10 @@ object sheet {
   
   val un = Graph[Int, WUnDiEdge](q:_*)            //> un  : scalax.collection.mutable.Graph[Int,scalax.collection.edge.WUnDiEdge] 
                                                   //| = Graph(1, 2, 1~2 %1)
+  
+  
+  Graph(1~2)                                      //> res0: scalax.collection.mutable.Graph[Int,scalax.collection.GraphEdge.UnDiEd
+                                                  //| ge] = Graph(1, 2, 1~2)
                            
   
   

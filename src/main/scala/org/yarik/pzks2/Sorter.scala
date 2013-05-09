@@ -102,7 +102,7 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
       println(s"node ${node.value.id} has maxW ${ws(node)}")
     }
     
-    sorted
+    sorted.map(_.value)
 
   }
 
