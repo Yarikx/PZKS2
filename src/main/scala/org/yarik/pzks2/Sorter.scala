@@ -61,46 +61,15 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
         findAllPathes(down)(np)
       }
     }
-//
-//    def bestPath(node: NodeT)={
-//      findAllPathes(false)(Set(List(node)))
-//        .maxBy(_.map(_.value.value).sum)
-//    }
     
     def maxWe(node: NodeT)={
       findAllPathes(true)(Set(List(node)))
         .maxBy(_.map(_.value.value).sum)
     }
 
-//    val good = for {
-//      node <- g.nodes
-//      d <- dst
-//      path <- node.pathTo(d, edgeFilter = { edge =>
-//        val n1 = edge.from
-//        val n2 = edge.to
-//
-//        n1.pathTo(n2, edgeFilter = _ != edge).isEmpty
-//      })
-//    } yield {
-//      val n = result(node) + 1
-//      (node, n)
-//    }
-
-    //val bad = (g.nodes -- good.map(_._1)).map(x => (x, 1))
-    
-    
-    //val all = (good ++ bad).toMap
-    //val sums = g.nodes.map(x=> (x, bestPath(x).map(_.value.value).sum)).toMap
     val ws = g.nodes.map(x=> (x, maxWe(x).map(_.value.value).sum)).toMap
-    //val maxW = sums.values.max
-    //val maxP = all.maxBy(_._2)._2.toDouble
-    //val connectivity = g.nodes.map(x => x -> (x.diSuccessors.size + x.diPredecessors.size)).toMap
 
     val sorted = g.nodes.toList.sortBy(ws(_)).reverse
-
-    sorted.foreach{ node =>
-      println(s"node ${node.value.id} has maxW ${ws(node)}")
-    }
     
     sorted.map(_.value)
 

@@ -72,14 +72,14 @@ object Modeller {
 
   //tasks
   case class Dep(task: Task, value: Time)
-  case class Task(id: Int, w: Time, dependsOn: Seq[Dep]){
-    override def toString=s"$id($w)"
+  case class Task(id: Int, w: Time, dependsOn: Seq[Dep]) {
+    override def toString = s"$id($w)"
   }
   //state machine
   abstract class State
   case object Idle extends State
   case class Work(start: Time, task: Task) extends State {
-    override def toString = s"W(task:$task)"
+    override def toString = s"W[$start](task:$task)"
   }
   case class Move(task: Task, from: Proc, to: Proc, w: Time) extends State
 
@@ -98,7 +98,7 @@ object Modeller {
       } else {
         val (opData, next) = l.slots(t - 1) match {
           case status @ Work(start, task) =>
-            if (start + task.w >= t) (Some(task), Idle)
+            if (start + task.w <= t) (Some(task), Idle)
             else (None, status)
           case Idle => (None, Idle)
         }
@@ -124,9 +124,10 @@ object Modeller {
   def buildStartEnv(procs: Seq[Proc]): Env =
     Env(procs.toList.map(p => Line(p, Seq(), Set())))
 
-  def makeStep(time: Time, prevEnv: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env = {
+  @tailrec def makeStep(time: Time, prevEnv: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env = {
     val env = prevEnv.prepare(time)
 
+    //place as many tasks as possible
     @tailrec def loop(env: Env, tasks: List[Task]): (Env, List[Task]) =
       if (tasks.isEmpty) (env, Nil)
       else env.freeAt(time) match {
@@ -139,8 +140,16 @@ object Modeller {
 
     val readyTasks = tasks.filter(env.isPreparedFor)
 
-    val (newEnv, rest) = loop(env, readyTasks)
-    newEnv
+    val (newEnv, restReady) = loop(env, readyTasks)
+    //not elegant variant of tasks -- (readyTasks -- restReady)
+    val tasksToProcess = tasks.filterNot(readyTasks.filterNot(restReady contains _) contains _)
+    if (newEnv.lines.forall(_.slots(time) == Idle)) newEnv
+    else {
+      println(s"=========time($time)======")
+      newEnv.lines.foreach(println)
+      println(s"=========time($time)======")
+      makeStep(time + 1, newEnv, tasksToProcess)
+    }
   }
 }
 
