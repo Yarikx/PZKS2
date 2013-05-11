@@ -28,8 +28,6 @@ class GraphSched() {
     }
   }
 
-  val hasAsyncIO = false;
-
   def show() = {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
@@ -40,8 +38,8 @@ class GraphSched() {
 
     val systemGraph = {
       val edges = systemDiGraph.edges.map { edge =>
-        val l = Proc(edge.from.value.id)
-        val r = Proc(edge.to.value.id)
+        val l = Proc(edge.from.value.id, edge.from.neighbors.map(n => n.id).toList)
+        val r = Proc(edge.to.value.id, edge.to.neighbors.map(n => n.id).toList)
         l ~ r
       }.toArray
 
@@ -59,12 +57,13 @@ class GraphSched() {
 
   def schedule(procs: List[Proc], tasks: List[Task]): Env = {
     val startEnv = Modeller.buildStartEnv(procs)
-    makeStep(0, startEnv, tasks)(procs)
+    //    makeStep(0, startEnv, tasks)(procs)
+    startEnv
   }
 
 }
 
-case class Proc(id: Int) {
+case class Proc(id: Int, neighbors: List[Int]) {
   override def toString = s"P[$id]"
 }
 object Modeller {
@@ -79,78 +78,129 @@ object Modeller {
   abstract class State
   case object Idle extends State
   case class Work(start: Time, task: Task) extends State {
-    override def toString = s"W[$start](task:$task)"
+    override def toString = s"W[$start]$task"
   }
-  case class Move(task: Task, from: Proc, to: Proc, w: Time) extends State
+  case class Move(task: Task, w: Time) extends State
 
-  case class Line(proc: Proc, slots: Seq[State], calculated: Set[Task]) {
-    def updSlot(index: Time, state: State) = Line(proc, slots.updated(index, state), calculated)
-    override def toString = s"$proc slots:[${slots.mkString(", ")}] data:${calculated.mkString(",")}"
-  }
-
-  case class Env(lines: List[Line]) {
+  case class Env(lines: List[TimeLine]) {
     def apply(proc: Proc) = lines.find(l => l.proc == proc).get
-    def freeAt(t: Time) = lines.filter(l => l.slots.size < t || l.slots(t) == Idle)
-    def prepare(t: Time) = Env(lines.map { l =>
-      if (t == 0) {
-        l.slots :+ Idle
-        Line(l.proc, l.slots :+ Idle, Set())
-      } else {
-        val (opData, next) = l.slots(t - 1) match {
-          case status @ Work(start, task) =>
-            if (start + task.w <= t) (Some(task), Idle)
-            else (None, status)
-          case Idle => (None, Idle)
-        }
 
-        val calc = opData.map(l.calculated + _).getOrElse(l.calculated)
-        Line(l.proc, l.slots :+ next, calc)
-      }
-    })
-
-    def isDone(task: Task) = lines.exists(_.calculated.contains(task))
+    def isDone(task: Task) = lines.exists(_.cpu.contains(task))
     def isPreparedFor(task: Task) = task.dependsOn.map(_.task).forall(isDone)
 
-    def startTask(time: Time, line: Line, task: Task): Env = {
+    def startTask(time: Time, line: TimeLine, task: Task): Env = {
       require(isPreparedFor(task))
       val lineNum = lines.indexOf(line)
-      val newLine = line.updSlot(time, Work(time, task))
+      val newLine = line.updCpu(time, Work(time, task))
       val updLines = lines.updated(lineNum, newLine)
       Env(updLines)
     }
+
+    def move(task: Task, path: List[Proc], w: Time): Env = {
+      require(path.size > 1)
+      val from :: toGo = path
+      val startTime =
+        apply(from)
+          .calculationTime(task)
+          .getOrElse(
+            throw new IllegalStateException(s"can't find caclucated $task"))
+
+      @tailrec def loop(startTime: Time, path: List[Proc], env: Env): Env = 
+        path match{
+        case from :: to :: rest => 
+          val line = env(from)
+          val index = env.lines.indexOf(line)
+          val firstSpace = line.findSpace(startTime, w, to.id)
+          val updLine = line.updLink(to.id, firstSpace, w, task)
+          val updEnv = Env(env.lines.updated(index, updLine))
+          loop(firstSpace +  w, to :: rest, updEnv)
+        case _ => env
+      } 
+
+      loop(startTime, path, this)
+    }
+
+    override def toString = lines.mkString("\n=============\n")
   }
+
+  case class TimeLine(proc: Proc, cpu: List[State], links: Map[Int, List[State]]) {
+    def calculationTime(task: Task): Option[Time] = cpu.collect {
+      case Work(start, `task`) => start + task.w
+    }.headOption
+
+    def calculatedAt(t: Time) = calculatedHereAt(t) ++ hasDataFromMovesAt(t)
+
+    def calculatedHereAt(time: Time) = cpu.collect {
+      case Work(start, task @ Task(_, w, _)) if time >= start + w => task
+    }.toSet
+
+    def hasDataFromMovesAt(time: Time) = links.values.map(_.take(time + 1)).flatten.collect {
+      case Move(task, _) => task
+    }.toSet
+
+    def updCpu(time: Time, work: Work): TimeLine = {
+      val range = time until (time + work.task.w)
+      require(range.forall(i => cpu(i) == Idle))
+      val updCpu = range.foldLeft(cpu)((ss, i) => ss.updated(i, work))
+      TimeLine(proc, updCpu, links)
+    }
+    
+    def findSpace(from: Time, size: Time, procLinkId: Int): Time=
+      links(procLinkId).drop(from).sliding(size).indexWhere(_.forall(_ == Idle)) + from
+      
+    def updLink(procId: Int, from: Int, w: Int, task: Task) ={
+      val slots = links(procId)
+      val range = from until (from + w)
+      require(range.forall(i => slots(i) == Idle))
+      val updSlots = range.foldLeft(slots)((ss, i) => ss.updated(i, Move(task, w)))
+      val updLinks = links + (procId -> updSlots)
+      TimeLine(proc, cpu, updLinks)
+    }
+
+    override def toString = {
+      val cpuStr = cpu.mkString(", ")
+      val linksStr = links.map { case (p, ss) => s"\nL[$p] [${ss.mkString(", ")}]" }.mkString
+      s"$proc [$cpuStr] $linksStr"
+    }
+  }
+
+  object TimeLine {
+    private val N = 10
+    private val startSlots = (1 to N).map(_ => Idle).toList
+    private def buildLinks(p: Proc) = p.neighbors.map(n => (n -> startSlots)).toMap
+    def apply(p: Proc) = new TimeLine(p, startSlots, buildLinks(p))
+  }
+
   //stuff
 
   def buildStartEnv(procs: Seq[Proc]): Env =
-    Env(procs.toList.map(p => Line(p, Seq(), Set())))
+    Env(procs.toList.map(p => TimeLine(p)))
 
-  @tailrec def makeStep(time: Time, prevEnv: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env = {
-    val env = prevEnv.prepare(time)
-
-    //place as many tasks as possible
-    @tailrec def loop(env: Env, tasks: List[Task]): (Env, List[Task]) =
-      if (tasks.isEmpty) (env, Nil)
-      else env.freeAt(time) match {
-        case Nil => (env, tasks)
-        case firstLine :: restLines =>
-          val task :: taskTail = tasks
-          val updEnv = env.startTask(time, firstLine, task)
-          loop(updEnv, taskTail)
-      }
-
-    val readyTasks = tasks.filter(env.isPreparedFor)
-
-    val (newEnv, restReady) = loop(env, readyTasks)
-    //not elegant variant of tasks -- (readyTasks -- restReady)
-    val tasksToProcess = tasks.filterNot(readyTasks.filterNot(restReady contains _) contains _)
-    if (newEnv.lines.forall(_.slots(time) == Idle)) newEnv
-    else {
-      println(s"=========time($time)======")
-      newEnv.lines.foreach(println)
-      println(s"=========time($time)======")
-      makeStep(time + 1, newEnv, tasksToProcess)
-    }
-  }
+  //  @tailrec def makeStep(time: Time, env: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env = {
+  //    //place as many tasks as possible
+  //    @tailrec def loop(env: Env, tasks: List[Task]): (Env, List[Task]) =
+  //      if (tasks.isEmpty) (env, Nil)
+  //      else env.freeAt(time) match {
+  //        case Nil => (env, tasks)
+  //        case firstLine :: restLines =>
+  //          val task :: taskTail = tasks
+  //          val updEnv = env.startTask(time, firstLine, task)
+  //          loop(updEnv, taskTail)
+  //      }
+  //
+  //    val readyTasks = tasks.filter(env.isPreparedFor)
+  //
+  //    val (newEnv, restReady) = loop(env, readyTasks)
+  //    //not elegant variant of tasks -- (readyTasks -- restReady)
+  //    val tasksToProcess = tasks.filterNot(readyTasks.filterNot(restReady contains _) contains _)
+  //    if (newEnv.lines.forall(_.procSlots(time) == Idle)) newEnv
+  //    else {
+  //      println(s"=========time($time)======")
+  //      newEnv.lines.foreach(println)
+  //      println(s"=========time($time)======")
+  //      makeStep(time + 1, newEnv, tasksToProcess)
+  //    }
+  //  }
 }
 
 
