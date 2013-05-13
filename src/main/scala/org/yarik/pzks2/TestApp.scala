@@ -37,5 +37,8 @@ object TestApp extends App {
   val p4 = env0.lines.map(_.proc).find(_.id == 4).get
   val withMove = withTask.move(task, List(p3, p2, p4), 2)
   println(withMove)
+  println("++++++++++++")
+  val withMove2 = withMove.move(task, List(p3, p2, p4), 2)
+  println(withMove2)
   
 }
