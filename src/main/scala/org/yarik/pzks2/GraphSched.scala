@@ -136,7 +136,11 @@ object Modeller {
     def alreadyCalculated = cpu.collect{
       case Work(_, task @ Task(_, w, _)) => task
     }.toSet
-    
+
+    def tasksData = alreadyCalculated ++ links.values.flatMap(l => l.collect{
+      case Move(task, _) => task
+    }).toSet
+
     def calculatedAt(t: Time) = calculatedHereAt(t) ++ hasDataFromMovesAt(t)
 
     def calculatedHereAt(time: Time) = cpu.collect {
@@ -166,6 +170,15 @@ object Modeller {
       TimeLine(proc, cpu, updLinks, maxIO)
     }
 
+    def timeForTask(task: Task)={
+      @tailrec def loop(t: Time):Time={
+        val calc = calculatedAt(t)
+        if(task.dependsOn.forall(dep => calc.contains(dep.task))) t
+        else loop(t+1)
+      }
+      loop(0)
+    }
+
     override def toString = {
       val cpuStr = cpu.mkString(", ")
       val linksStr = links.map { case (p, ss) => s"\nL[$p] [${ss.mkString(", ")}]" }.mkString
@@ -187,11 +200,29 @@ object Modeller {
     Env(procs.toList.map(p => TimeLine(p)))
 
   def makeStep(env: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env =
-    if (env.lines.flatMap(_.alreadyCalculated).toSet == tasks.toSet)
+    if (tasks isEmpty)
       env
     else {
-      
-      null
+      //try to find ready to calculate tasks
+      val goodPair = tasks.map{task =>
+        val depTasks = task.dependsOn.map(_.task)
+        val opLine = env.lines.find{line =>
+          depTasks.forall(line.tasksData.contains(_))
+        }
+        opLine.map((task, _))
+      }.collect{case Some(o) => o}.headOption
+
+      goodPair match {
+        case Some((task, line)) => 
+          val time = line.timeForTask(task)
+          val updEnv = env.startTask(time, line, task)
+          println("start new task")
+          println(updEnv)
+          makeStep(updEnv, tasks.filter(_ != task))
+        case None => 
+        //ok, find tasks to move
+          null
+      }
     }
 
   //  @tailrec def makeStep(time: Time, env: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env = {
