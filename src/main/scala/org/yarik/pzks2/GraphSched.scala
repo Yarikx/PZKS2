@@ -73,14 +73,14 @@ object Modeller {
   case class Work(start: Time, task: Task) extends State {
     override def toString = s"W[$start]$task"
   }
-  case class Move(task: Task, w: Time) extends State {
+  case class Move(start: Time, task: Task, w: Time) extends State {
     override def toString = s"M[$task]"
   }
 
   case class Env(lines: List[TimeLine]) {
     def apply(proc: Proc) = lines.find(l => l.proc == proc).get
 
-    def isDone(task: Task) = lines.exists(_.cpu.contains(task))
+    def isDone(task: Task) = lines.exists(_.tasksData.contains(task))
     def isPreparedFor(task: Task) = task.dependsOn.map(_.task).forall(isDone)
 
     def startTask(time: Time, line: TimeLine, task: Task): Env = {
@@ -89,6 +89,12 @@ object Modeller {
       val newLine = line.updCpu(time, Work(time, task))
       val updLines = lines.updated(lineNum, newLine)
       Env(updLines)
+    }
+    
+    def findSpace(startTime: Time, size: Time, from: Proc, to:Proc): Time ={
+      val ziped = this(from).links(to.id) zip this(to).receive(from.id)
+      val slided = ziped.drop(startTime).sliding(size)
+      slided.indexWhere(_.forall(_ == (Idle, Idle))) + startTime
     }
 
     def move(task: Task, path: List[Proc], w: Time): Env = {
@@ -100,23 +106,32 @@ object Modeller {
           .getOrElse(
             throw new IllegalStateException(s"can't find caclucated $task"))
 
-      @tailrec def finSpaceRecur(from: Time, line: TimeLine, procId: Int): Time = {
-        val firstSpace = line.findSpace(from, w, procId)
-        val loaded = line.links.values.collect {
+      @tailrec def finSpaceRecur(startTime: Time, lineFrom: TimeLine, lineTo: TimeLine): Time = {
+        val from = lineFrom.proc
+        val to = lineTo.proc
+        val firstSpace = findSpace(startTime, w, from, to)
+        val loadedFrom = lineFrom.links.values.collect {
           case ls if ls(firstSpace) != Idle => 1
         }.sum
-        if (loaded < line.maxIO) firstSpace
-        else finSpaceRecur(firstSpace + 1, line, procId)
+        val loadedTo = lineTo.receive.values.collect {
+          case ls if ls(firstSpace) != Idle => 1
+        }.sum
+        
+        if (loadedFrom < lineFrom.maxIO && loadedTo < lineTo.maxIO) firstSpace
+        else finSpaceRecur(firstSpace + 1, lineFrom, lineTo)
       }
 
       @tailrec def loop(startTime: Time, path: List[Proc], env: Env): Env =
         path match {
           case from :: to :: rest =>
-            val line = env(from)
-            val index = env.lines.indexOf(line)
-            val firstSpace = finSpaceRecur(startTime, line, to.id) //line.findSpace(startTime, w, to.id)
-            val updLine = line.move(to.id, firstSpace, w, task)
-            val updEnv = Env(env.lines.updated(index, updLine))
+            val lineFrom = env(from)
+            val lineTo = env(to)
+            val indexFrom = env.lines.indexOf(lineFrom)
+            val indexTo = env.lines.indexOf(lineTo)
+            val firstSpace = finSpaceRecur(startTime, lineFrom, lineTo) //line.findSpace(startTime, w, to.id)
+            val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
+            val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
+            val updEnv = Env(env.lines.updated(indexFrom, updLineFrom).updated(indexTo, updLineTo))
             loop(firstSpace + w, to :: rest, updEnv)
           case _ => env
         }
@@ -127,7 +142,7 @@ object Modeller {
     override def toString = lines.mkString("\n=============\n")
   }
 
-  case class TimeLine(proc: Proc, cpu: List[State], links: Map[Int, List[State]], maxIO: Int) {
+  case class TimeLine(proc: Proc, cpu: List[State], links: Map[Int, List[State]], receive: Map[Int, List[State]], maxIO: Int) {
     def calculationTime(task: Task): Option[Time] = cpu.collect {
       case Work(start, `task`) => start + task.w
     }.headOption
@@ -136,8 +151,8 @@ object Modeller {
       case Work(_, task @ Task(_, w, _)) => task
     }.toSet
 
-    def tasksData = alreadyCalculated ++ links.values.flatMap(l => l.collect {
-      case Move(task, _) => task
+    def tasksData = alreadyCalculated ++ receive.values.flatMap(l => l.collect {
+      case Move(_, task, _) => task
     }).toSet
 
     def calculatedAt(t: Time) = calculatedHereAt(t) ++ hasDataFromMovesAt(t)
@@ -146,27 +161,32 @@ object Modeller {
       case Work(start, task @ Task(_, w, _)) if time >= start + w => task
     }.toSet
 
-    def hasDataFromMovesAt(time: Time) = links.values.map(_.take(time + 1)).flatten.collect {
-      case Move(task, _) => task
+    def hasDataFromMovesAt(time: Time) = receive.values.map(_.take(time)).flatten.collect {
+      case Move(start, task, w) if time >= start + w => task
     }.toSet
 
     def updCpu(time: Time, work: Work): TimeLine = {
       val range = time until (time + work.task.w)
       require(range.forall(i => cpu(i) == Idle))
       val updCpu = range.foldLeft(cpu)((ss, i) => ss.updated(i, work))
-      TimeLine(proc, updCpu, links, maxIO)
+      TimeLine(proc, updCpu, links, receive, maxIO)
     }
 
-    def findSpace(from: Time, size: Time, procLinkId: Int): Time =
-      links(procLinkId).drop(from).sliding(size).indexWhere(_.forall(_ == Idle)) + from
-
-    def move(procId: Int, from: Int, w: Int, task: Task) = {
-      val slots = links(procId)
+    def moveFrom(procId: Int, from: Int, w: Int, task: Task) = 
+      move(procId, from, w, task, true)
+    
+    def moveTo(procId: Int, from: Int, w: Int, task: Task) = 
+      move(procId, from, w, task, false)
+    
+    private def move(procId: Int, from: Int, w: Int, task: Task, in:Boolean) = {
+      val map = if(in)links else receive
+      val slots = map(procId)
       val range = from until (from + w)
       require(range.forall(i => slots(i) == Idle))
-      val updSlots = range.foldLeft(slots)((ss, i) => ss.updated(i, Move(task, w)))
-      val updLinks = links + (procId -> updSlots)
-      TimeLine(proc, cpu, updLinks, maxIO)
+      val updSlots = range.foldLeft(slots)((ss, i) => ss.updated(i, Move(from, task, w)))
+      val updLinks = map + (procId -> updSlots)
+      if(in) TimeLine(proc, cpu, updLinks, receive, maxIO)
+      else TimeLine(proc, cpu, links, updLinks, maxIO)
     }
 
     def timeForTask(task: Task) = {
@@ -176,6 +196,8 @@ object Modeller {
           && cpu.drop(t).take(task.w).forall(_ == Idle)) t
         else loop(t + 1)
       }
+      if(task.id == 3)
+        println("thats it")
       loop(0)
     }
 
@@ -188,10 +210,10 @@ object Modeller {
 
   object TimeLine {
     val N = 10
-    private val maxIO = 1
+    private val maxIO = 5
     private val startSlots = (1 to N).map(_ => Idle).toList
     private def buildLinks(p: Proc) = p.neighbors.map(n => (n -> startSlots)).toMap
-    def apply(p: Proc) = new TimeLine(p, startSlots, buildLinks(p), maxIO)
+    def apply(p: Proc) = new TimeLine(p, startSlots, buildLinks(p), buildLinks(p), maxIO)
   }
 
   //stuff

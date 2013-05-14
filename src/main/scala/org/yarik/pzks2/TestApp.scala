@@ -26,11 +26,8 @@ object TestApp extends App {
   } 
 
   val sched = new GraphSched 
-  val env0 = sched.transformAndSchedule(sg, tg)
+  val res = sched.transformAndSchedule(sg, tg)
   
-  val task = Task(1,3, Seq())
-  val task2 = Task(2,2, Seq())
-  val withTask = env0.startTask(0, env0.lines(0), task)
   // println(withTask)
   // println
   // println
@@ -54,7 +51,6 @@ object TestApp extends App {
 //  implicit val procPriors = withTask.lines.map(_.proc)
 //  
 //  val res = makeStep(env0, List(task, task2))
-  val res = sched.transformAndSchedule(sg, tg)
   println("result")
   println(res)
   
