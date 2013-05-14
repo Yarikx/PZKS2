@@ -12,8 +12,9 @@ import UiHelper._
 import scalax.collection.GraphEdge.UnDiEdge
 import SchedUtils._
 import scala.annotation.tailrec
+import scala.swing.Component
 
-class GraphSched() {
+class GraphSched(update: Component => Unit) {
   import Modeller._
   val button = new Button("show")
   val panel = new FlowPanel(l("show"), button) {
@@ -27,7 +28,8 @@ class GraphSched() {
   def show() = {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
-    transformAndSchedule(systemDiGraph, taskGraph)
+    val env = transformAndSchedule(systemDiGraph, taskGraph)
+    update(makeUi(env))
   }
 
   def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge]): Env = {
@@ -196,8 +198,6 @@ object Modeller {
           && cpu.drop(t).take(task.w).forall(_ == Idle)) t
         else loop(t + 1)
       }
-      if(task.id == 3)
-        println("thats it")
       loop(0)
     }
 
@@ -209,7 +209,7 @@ object Modeller {
   }
 
   object TimeLine {
-    val N = 10
+    val N = 100
     private val maxIO = 5
     private val startSlots = (1 to N).map(_ => Idle).toList
     private def buildLinks(p: Proc) = p.neighbors.map(n => (n -> startSlots)).toMap
@@ -242,8 +242,8 @@ object Modeller {
       goodPair match {
         case Some((task, line, time)) =>
           val updEnv = env.startTask(time, line, task)
-          println("start new task")
-          println(updEnv)
+
+
           makeStep(updEnv, tasks.filter(_ != task))
         case None =>
           //ok, find tasks to move
@@ -273,37 +273,9 @@ object Modeller {
             case (task, path, w) => tmpEnv.move(task, path, w)
           }}
 
-          println("moved tasks")
-          println(updEnv)
+
+
           makeStep(updEnv, tasks)
       }
     }
-
-  //  @tailrec def makeStep(time: Time, env: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env = {
-  //    //place as many tasks as possible
-  //    @tailrec def loop(env: Env, tasks: List[Task]): (Env, List[Task]) =
-  //      if (tasks.isEmpty) (env, Nil)
-  //      else env.freeAt(time) match {
-  //        case Nil => (env, tasks)
-  //        case firstLine :: restLines =>
-  //          val task :: taskTail = tasks
-  //          val updEnv = env.startTask(time, firstLine, task)
-  //          loop(updEnv, taskTail)
-  //      }
-  //
-  //    val readyTasks = tasks.filter(env.isPreparedFor)
-  //
-  //    val (newEnv, restReady) = loop(env, readyTasks)
-  //    //not elegant variant of tasks -- (readyTasks -- restReady)
-  //    val tasksToProcess = tasks.filterNot(readyTasks.filterNot(restReady contains _) contains _)
-  //    if (newEnv.lines.forall(_.procSlots(time) == Idle)) newEnv
-  //    else {
-  //      println(s"=========time($time)======")
-  //      newEnv.lines.foreach(println)
-  //      println(s"=========time($time)======")
-  //      makeStep(time + 1, newEnv, tasksToProcess)
-  //    }
-  //  }
 }
-
-

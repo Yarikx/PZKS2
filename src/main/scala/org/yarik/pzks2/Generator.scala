@@ -16,9 +16,9 @@ class Generator(gui: Gui) {
   val r = new Random
 
   def createControls = {
-    val loField = new TextField(5) { text = "10" }
-    val hiField = new TextField(5) { text = "50" }
-    val numberField = new TextField(5) { text = "10" }
+    val loField = new TextField(5) { text = "1" }
+    val hiField = new TextField(5) { text = "5" }
+    val numberField = new TextField(5) { text = "5" }
     val koefField = new TextField(5) { text = "0.5" }
 
     val number = createGet(numberField)

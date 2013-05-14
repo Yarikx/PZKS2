@@ -6,7 +6,7 @@ import scala.swing.BorderPanel
 
 object Gapp extends SimpleSwingApplication {
 
-  val sched = new GraphSched()
+  val sched = new GraphSched(comp => tp.pages += new Page("result", comp))
   
   val tp = new TabbedPane {
     pages += new Page("task", TaskUi.content)
