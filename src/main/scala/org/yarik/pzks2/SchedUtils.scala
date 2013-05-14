@@ -25,10 +25,10 @@ object SchedUtils {
 
 
   def makeUi(env: Env)= new Label{
-    val cpuHeight = 30
+    val cpuHeight = 20
     val linkHeight = 20
-    val margin = 50
-    val stepWidth = 30
+    val margin = 20
+    val stepWidth = 20
 
     private def draw(i: Int,  y: Int, state: State, g: Graphics2D){
       val x = margin +i*stepWidth
@@ -37,15 +37,18 @@ object SchedUtils {
           g.setColor(Color.RED)
           g.fillRect(x, y, stepWidth, cpuHeight)
           g.setColor(Color.BLACK)
-          g.drawString(""+id, x, y)
+          g.drawString(""+id, x+stepWidth/2, y+cpuHeight/2)
         case Move(_,task, _) => 
           g.setColor(Color.BLUE)
           g.fillRect(x, y, stepWidth, linkHeight)
+          g.setColor(Color.WHITE)
+          g.drawString(""+task.id, x+stepWidth/2, y+linkHeight/2)
         case _ =>
       }
     }
 
     private def paintLine(line: TimeLine, y: Int, g: Graphics2D):Int={
+      g.setColor(Color.BLACK)
       g.drawString(""+line.proc, 0, y)
       g.setColor(Color.RED)
       for{
@@ -58,14 +61,13 @@ object SchedUtils {
         j <- 0 until keys.size
         key = keys(j)
         my = y+cpuHeight+j*linkHeight
-        _ = g.drawString(""+key, 0, my)
-        _ = g.drawLine(0, my, 500, my)
+        _ = g.drawString(""+key, 0, my+linkHeight/2)
+        _ = g.drawLine(0, my, 5000, my)
         moves = line.links(key)
         i <- 0 until TimeLine.N
         move = moves(i)
-        
       } draw(i, my, move, g)
-      cpuHeight + margin+keys.size * linkHeight
+      cpuHeight + 10 + keys.size * linkHeight
     }
 
     override def paint(g: Graphics2D){

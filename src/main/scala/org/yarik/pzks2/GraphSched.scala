@@ -174,6 +174,8 @@ object Modeller {
       TimeLine(proc, updCpu, links, receive, maxIO)
     }
 
+    def lastCpu = cpu.lastIndexWhere(_ != Idle)
+
     def moveFrom(procId: Int, from: Int, w: Int, task: Task) = 
       move(procId, from, w, task, true)
     
@@ -256,7 +258,7 @@ object Modeller {
             if line.tasksData contains depTask
           } yield line).distinct
           
-          val dst = linesWithData.sortBy(line => procPriors.indexOf(line.proc)).head
+          val dst = linesWithData.sortBy(line => procPriors.indexOf(line.proc)).reverse.sortBy(_.lastCpu).reverse.head
           val toMove = task.dependsOn.map {
             case Dep(depTask, w) =>
               val line = env.lines.find{
