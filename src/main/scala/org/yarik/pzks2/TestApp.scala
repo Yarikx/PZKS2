@@ -5,6 +5,7 @@ import scalax.collection.edge.{ WDiEdge, WUnDiEdge }
 import scalax.collection.edge.Implicits._
 import scalax.collection.mutable.Graph
 import org.yarik.pzks2.Modeller._
+import scalax.collection.GraphEdge.UnDiEdge
 
 object TestApp extends App {
   val tg = {
@@ -27,7 +28,8 @@ object TestApp extends App {
   val sched = new GraphSched 
   val env0 = sched.transformAndSchedule(sg, tg)
   
-  val task = Task(42,3, Seq())
+  val task = Task(1,3, Seq())
+  val task2 = Task(2,2, Seq())
   val withTask = env0.startTask(0, env0.lines(0), task)
   // println(withTask)
   // println
@@ -40,7 +42,19 @@ object TestApp extends App {
   // println("++++++++++++")
   // val withMove2 = withMove.move(task, List(p3, p2, p4), 2)
   // println(withMove2)
-  val res = makeStep(env0, List(task))(withTask.lines.map(_.proc))
+//  implicit val systemG = {
+//      val edges = sg.edges.map { edge =>
+//        val l = Proc(edge.from.value.id, edge.from.neighbors.map(n => n.id).toList)
+//        val r = Proc(edge.to.value.id, edge.to.neighbors.map(n => n.id).toList)
+//        l ~ r
+//      }.toArray
+//
+//      Graph[Proc, UnDiEdge](edges: _*)
+//    }
+//  implicit val procPriors = withTask.lines.map(_.proc)
+//  
+//  val res = makeStep(env0, List(task, task2))
+  val res = sched.transformAndSchedule(sg, tg)
   println("result")
   println(res)
   

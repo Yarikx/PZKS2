@@ -46,13 +46,12 @@ class GraphSched() {
     val sortedSystem = systemGraph.nodes.toList.sortBy(x => x.degree).map(_.value).reverse
     val sortedTasks = buildTasks(sorted, taskGraph)
 
-    schedule(sortedSystem, sortedTasks)
+    schedule(sortedSystem, sortedTasks, systemGraph)
   }
 
-  def schedule(procs: List[Proc], tasks: List[Task]): Env = {
+  def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge]): Env = {
     val startEnv = Modeller.buildStartEnv(procs)
-    //    makeStep(0, startEnv, tasks)(procs)
-    startEnv
+    makeStep(startEnv, tasks)(procs, systemGraph)
   }
 
 }
@@ -101,21 +100,21 @@ object Modeller {
           .getOrElse(
             throw new IllegalStateException(s"can't find caclucated $task"))
 
-      @tailrec def finSpaceRecur(from:Time, line:TimeLine, procId: Int):Time={
+      @tailrec def finSpaceRecur(from: Time, line: TimeLine, procId: Int): Time = {
         val firstSpace = line.findSpace(from, w, procId)
-        val loaded = line.links.values.collect{
-          case ls if ls(firstSpace)!=Idle => 1
+        val loaded = line.links.values.collect {
+          case ls if ls(firstSpace) != Idle => 1
         }.sum
-        if(loaded < line.maxIO) firstSpace
-        else finSpaceRecur(firstSpace+1, line, procId)
-      }      
-            
+        if (loaded < line.maxIO) firstSpace
+        else finSpaceRecur(firstSpace + 1, line, procId)
+      }
+
       @tailrec def loop(startTime: Time, path: List[Proc], env: Env): Env =
         path match {
           case from :: to :: rest =>
             val line = env(from)
             val index = env.lines.indexOf(line)
-            val firstSpace = finSpaceRecur(startTime, line, to.id)//line.findSpace(startTime, w, to.id)
+            val firstSpace = finSpaceRecur(startTime, line, to.id) //line.findSpace(startTime, w, to.id)
             val updLine = line.move(to.id, firstSpace, w, task)
             val updEnv = Env(env.lines.updated(index, updLine))
             loop(firstSpace + w, to :: rest, updEnv)
@@ -133,11 +132,11 @@ object Modeller {
       case Work(start, `task`) => start + task.w
     }.headOption
 
-    def alreadyCalculated = cpu.collect{
+    def alreadyCalculated = cpu.collect {
       case Work(_, task @ Task(_, w, _)) => task
     }.toSet
 
-    def tasksData = alreadyCalculated ++ links.values.flatMap(l => l.collect{
+    def tasksData = alreadyCalculated ++ links.values.flatMap(l => l.collect {
       case Move(task, _) => task
     }).toSet
 
@@ -170,11 +169,12 @@ object Modeller {
       TimeLine(proc, cpu, updLinks, maxIO)
     }
 
-    def timeForTask(task: Task)={
-      @tailrec def loop(t: Time):Time={
+    def timeForTask(task: Task) = {
+      @tailrec def loop(t: Time): Time = {
         val calc = calculatedAt(t)
-        if(task.dependsOn.forall(dep => calc.contains(dep.task))) t
-        else loop(t+1)
+        if (task.dependsOn.forall(dep => calc.contains(dep.task))
+          && cpu.drop(t).take(task.w).forall(_ == Idle)) t
+        else loop(t + 1)
       }
       loop(0)
     }
@@ -199,29 +199,61 @@ object Modeller {
   def buildStartEnv(procs: Seq[Proc]): Env =
     Env(procs.toList.map(p => TimeLine(p)))
 
-  def makeStep(env: Env, tasks: List[Task])(implicit procPriors: List[Proc]): Env =
+  def makeStep(env: Env, tasks: List[Task])(implicit procPriors: List[Proc], systemG: Graph[Proc, UnDiEdge]): Env =
     if (tasks isEmpty)
       env
     else {
       //try to find ready to calculate tasks
-      val goodPair = tasks.map{task =>
+      val goodPair = tasks.map { task =>
         val depTasks = task.dependsOn.map(_.task)
-        val opLine = env.lines.find{line =>
-          depTasks.forall(line.tasksData.contains(_))
+        val okLines = env.lines.filter { line =>
+          val set = line.tasksData
+          depTasks.forall(set.contains)
+        }.map { line =>
+          val time = line.timeForTask(task)
+
+          (task, line, time)
         }
-        opLine.map((task, _))
-      }.collect{case Some(o) => o}.headOption
+        okLines.sortBy(_._3).headOption
+      }.collect { case Some(o) => o }.sortBy(_._3).headOption
 
       goodPair match {
-        case Some((task, line)) => 
-          val time = line.timeForTask(task)
+        case Some((task, line, time)) =>
           val updEnv = env.startTask(time, line, task)
           println("start new task")
           println(updEnv)
           makeStep(updEnv, tasks.filter(_ != task))
-        case None => 
-        //ok, find tasks to move
-          null
+        case None =>
+          //ok, find tasks to move
+          val task = tasks.head
+          require(!task.dependsOn.isEmpty)
+          val linesWithData = (for {
+            line <- env.lines
+            dep <- task.dependsOn
+            depTask = dep.task
+            if line.tasksData contains depTask
+          } yield line).distinct
+          
+          val dst = linesWithData.sortBy(line => procPriors.indexOf(line.proc)).head
+          val toMove = task.dependsOn.map {
+            case Dep(depTask, w) =>
+              val line = env.lines.find{
+                line => line.alreadyCalculated.contains(depTask)
+              }.get
+              val path = {
+                val from = systemG.nodes.get(line.proc)
+                val to = systemG.nodes.get(dst.proc)
+                from.shortestPathTo(to).get.nodes.map(_.value)
+              }
+              (depTask, path, w)
+          }.filterNot{case (dt, _, _) => dst.alreadyCalculated.contains(dt)}
+          val updEnv = toMove.foldLeft(env) { (tmpEnv, move) => move match{
+            case (task, path, w) => tmpEnv.move(task, path, w)
+          }}
+
+          println("moved tasks")
+          println(updEnv)
+          makeStep(updEnv, tasks)
       }
     }
 
