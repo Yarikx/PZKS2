@@ -37,11 +37,11 @@ object SchedUtils {
           g.setColor(Color.RED)
           g.fillRect(x, y, stepWidth, cpuHeight)
           g.setColor(Color.BLACK)
-          g.drawString(""+id, x+stepWidth/2, y+cpuHeight/2)
+          g.drawString(""+id, x+1, y+cpuHeight/2)
         case Move(_,task, _) => 
           g.fillRect(x, y, stepWidth, linkHeight/2)
           g.setColor(Color.WHITE)
-          g.drawString(""+task.id, x+stepWidth/2, y+linkHeight/2)
+          g.drawString(""+task.id, x+1, y+linkHeight/2)
         case _ =>
       }
     }
@@ -55,15 +55,15 @@ object SchedUtils {
         cpu = line.cpu(i)
       } draw(i, y, cpu, g)
 
-      val keys = line.links.keys.toList
+      val keys = line.sends.keys.toList
       for{ 
         j <- 0 until keys.size
         key = keys(j)
         my = y+cpuHeight+j*linkHeight
         _ = g.drawString(""+key, 0, my+linkHeight/2)
         _ = g.drawLine(0, my, 5000, my)
-        sends = line.links(key)
-        receives = line.receive(key)
+        sends = line.sends(key)
+        receives = line.receives(key)
         i <- 0 until TimeLine.N
         send = sends(i)
         receive = receives(i)

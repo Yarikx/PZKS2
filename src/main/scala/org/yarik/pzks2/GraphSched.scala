@@ -1,19 +1,19 @@
 package org.yarik.pzks2
 
-import scalax.collection.mutable.Graph
-import scalax.collection.edge.WDiEdge
-import scalax.collection.edge.WUnDiEdge
-import scalax.collection.edge.Implicits._
-import scalax.collection.GraphPredef._
+import scala.annotation.tailrec
 import scala.swing.Button
+import scala.swing.Component
 import scala.swing.FlowPanel
+import scala.swing.TextField
 import scala.swing.event.ButtonClicked
+
+import SchedUtils.buildTasks
+import SchedUtils.makeUi
 import UiHelper._
 import scalax.collection.GraphEdge.UnDiEdge
-import SchedUtils._
-import scala.annotation.tailrec
-import scala.swing.Component
-import scala.swing.TextField
+import scalax.collection.GraphPredef.any2EdgeAssoc
+import scalax.collection.edge.WDiEdge
+import scalax.collection.mutable.Graph
 
 class GraphSched(update: Component => Unit) {
   import Modeller._
@@ -97,7 +97,7 @@ object Modeller {
     }
 
     def findSpace(startTime: Time, size: Time, from: Proc, to: Proc): Time = {
-      val ziped = this(from).links(to.id) zip this(to).receive(from.id)
+      val ziped = this(from).sends(to.id) zip this(to).receives(from.id)
       val oks = ziped.map {
         case (Idle, Idle) => true
         case _ => false
@@ -120,8 +120,8 @@ object Modeller {
         val to = lineTo.proc
         val firstSpace = findSpace(startTime, w, from, to)
         val ok = {
-          val frees = lines.map(line => line.free.drop(firstSpace).take(w))
-          frees.forall(l => l.forall(x => x < lineFrom.maxIO))
+          val frees = List(lineFrom, lineTo).map(line => line.free.drop(firstSpace).take(w))
+          frees.forall(l => l.forall(_ < lineFrom.maxIO))
         }
 
         if (ok) firstSpace
@@ -135,7 +135,7 @@ object Modeller {
             val lineTo = env(to)
             val indexFrom = env.lines.indexOf(lineFrom)
             val indexTo = env.lines.indexOf(lineTo)
-            val firstSpace = finSpaceRecur(startTime, lineFrom, lineTo) //line.findSpace(startTime, w, to.id)
+            val firstSpace = finSpaceRecur(startTime, lineFrom, lineTo)
             val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
             val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
             val updEnv = Env(env.lines.updated(indexFrom, updLineFrom).updated(indexTo, updLineTo))
@@ -149,7 +149,7 @@ object Modeller {
     override def toString = lines.mkString("\n=============\n")
   }
 
-  case class TimeLine(proc: Proc, cpu: List[State], links: Map[Int, List[State]], receive: Map[Int, List[State]], maxIO: Int) {
+  case class TimeLine(proc: Proc, cpu: List[State], sends: Map[Int, List[State]], receives: Map[Int, List[State]], maxIO: Int) {
     def calculationTime(task: Task): Option[Time] = cpu.collect {
       case Work(start, `task`) => start + task.w
     }.headOption
@@ -158,7 +158,7 @@ object Modeller {
       case Work(_, task @ Task(_, w, _)) => task
     }.toSet
 
-    def tasksData = alreadyCalculated ++ receive.values.flatMap(l => l.collect {
+    def tasksData = alreadyCalculated ++ receives.values.flatMap(l => l.collect {
       case Move(_, task, _) => task
     }).toSet
 
@@ -168,7 +168,7 @@ object Modeller {
       case Work(start, task @ Task(_, w, _)) if time >= start + w => task
     }.toSet
 
-    def hasDataFromMovesAt(time: Time) = receive.values.map(_.take(time)).flatten.collect {
+    def hasDataFromMovesAt(time: Time) = receives.values.map(_.take(time)).flatten.collect {
       case Move(start, task, w) if time >= start + w => task
     }.toSet
 
@@ -176,7 +176,7 @@ object Modeller {
       val range = time until (time + work.task.w)
       require(range.forall(i => cpu(i) == Idle))
       val updCpu = range.foldLeft(cpu)((ss, i) => ss.updated(i, work))
-      TimeLine(proc, updCpu, links, receive, maxIO)
+      TimeLine(proc, updCpu, sends, receives, maxIO)
     }
 
     def lastCpu = cpu.lastIndexWhere(_ != Idle)
@@ -188,20 +188,20 @@ object Modeller {
       move(procId, from, w, task, false)
 
     private def move(procId: Int, from: Int, w: Int, task: Task, in: Boolean) = {
-      val map = if (in) links else receive
+      val map = if (in) sends else receives
       val slots = map(procId)
       val range = from until (from + w)
       require(range.forall(i => slots(i) == Idle))
       val updSlots = range.foldLeft(slots)((ss, i) => ss.updated(i, Move(from, task, w)))
       val updLinks = map + (procId -> updSlots)
-      if (in) TimeLine(proc, cpu, updLinks, receive, maxIO)
-      else TimeLine(proc, cpu, links, updLinks, maxIO)
+      if (in) TimeLine(proc, cpu, updLinks, receives, maxIO)
+      else TimeLine(proc, cpu, sends, updLinks, maxIO)
     }
 
     def free = {
-      val keys = links.keys
-      val to = keys.map(links)
-      val from = keys.map(receive)
+      val keys = sends.keys.toList
+      val to = keys.map(sends)
+      val from = keys.map(receives)
       (to zip from).map {
         case (l1, l2) =>
           val zipped = l1 zip l2
@@ -229,8 +229,9 @@ object Modeller {
 
     override def toString = {
       val cpuStr = cpu.mkString(", ")
-      val linksStr = links.map { case (p, ss) => s"\nL[$p] [${ss.mkString(", ")}]" }.mkString
-      s"$proc [$cpuStr] $linksStr"
+      val linksStr = sends.map { case (p, ss) => s"\nL[$p] [${ss.mkString(", ")}]" }.mkString
+      val resStr = receives.map { case (p, ss) => s"\nL[$p] [${ss.mkString(", ")}]" }.mkString
+      s"$proc [$cpuStr] $linksStr \n$resStr"
     }
   }
 
@@ -272,9 +273,6 @@ object Modeller {
         case None =>
           //ok, find tasks to move
           val task = tasks.head
-          if(task.id == 0){
-            println("thats it")
-          }
           require(!task.dependsOn.isEmpty)
           val linesWithData = (for {
             line <- env.lines
