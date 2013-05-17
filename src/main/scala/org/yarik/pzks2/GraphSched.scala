@@ -98,8 +98,12 @@ object Modeller {
     
     def findSpace(startTime: Time, size: Time, from: Proc, to:Proc): Time ={
       val ziped = this(from).links(to.id) zip this(to).receive(from.id)
-      val slided = ziped.drop(startTime).sliding(size)
-      slided.indexWhere(_.forall(_ == (Idle, Idle))) + startTime
+      val oks = ziped.map{
+        case (Idle, Idle) => true
+        case _ => false
+      }
+      val slided = oks.drop(startTime).sliding(size)
+      slided.indexWhere(_.forall(x => x)) + startTime
     }
 
     def move(task: Task, path: List[Proc], w: Time): Env = {

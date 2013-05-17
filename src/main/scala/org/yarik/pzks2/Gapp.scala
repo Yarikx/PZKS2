@@ -6,8 +6,13 @@ import scala.swing.BorderPanel
 
 object Gapp extends SimpleSwingApplication {
 
-  val sched = new GraphSched(comp => tp.pages += new Page("result", comp))
-  
+  val sched = new GraphSched(comp => {
+    val page = new Page("result", comp)
+    if (tp.pages.size < 3) tp.pages += page
+    else tp.pages.update(2, page)
+    tp.selection.index = 2
+  })
+
   val tp = new TabbedPane {
     pages += new Page("task", TaskUi.content)
     pages += new Page("system", SystemUi.content)
@@ -15,7 +20,7 @@ object Gapp extends SimpleSwingApplication {
 
   def top = new MainFrame {
     title = "Graphs"
-    contents = new BorderPanel(){
+    contents = new BorderPanel() {
       add(tp, BorderPanel.Position.Center)
       add(sched.panel, BorderPanel.Position.South)
     }
