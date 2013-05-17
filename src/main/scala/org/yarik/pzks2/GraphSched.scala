@@ -272,6 +272,9 @@ object Modeller {
         case None =>
           //ok, find tasks to move
           val task = tasks.head
+          if(task.id == 0){
+            println("thats it")
+          }
           require(!task.dependsOn.isEmpty)
           val linesWithData = (for {
             line <- env.lines
@@ -292,7 +295,7 @@ object Modeller {
                 from.shortestPathTo(to).get.nodes.map(_.value)
               }
               (depTask, path, w)
-          }.filterNot { case (dt, _, _) => dst.alreadyCalculated.contains(dt) }
+          }.filterNot { case (dt, _, _) => dst.tasksData.contains(dt) }
           val updEnv = toMove.foldLeft(env) { (tmpEnv, move) =>
             move match {
               case (task, path, w) => tmpEnv.move(task, path, w)
