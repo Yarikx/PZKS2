@@ -39,8 +39,7 @@ object SchedUtils {
           g.setColor(Color.BLACK)
           g.drawString(""+id, x+stepWidth/2, y+cpuHeight/2)
         case Move(_,task, _) => 
-          g.setColor(Color.BLUE)
-          g.fillRect(x, y, stepWidth, linkHeight)
+          g.fillRect(x, y, stepWidth, linkHeight/2)
           g.setColor(Color.WHITE)
           g.drawString(""+task.id, x+stepWidth/2, y+linkHeight/2)
         case _ =>
@@ -63,10 +62,17 @@ object SchedUtils {
         my = y+cpuHeight+j*linkHeight
         _ = g.drawString(""+key, 0, my+linkHeight/2)
         _ = g.drawLine(0, my, 5000, my)
-        moves = line.links(key)
+        sends = line.links(key)
+        receives = line.receive(key)
         i <- 0 until TimeLine.N
-        move = moves(i)
-      } draw(i, my, move, g)
+        send = sends(i)
+        receive = receives(i)
+      } {
+        g.setColor(Color.BLUE)
+        draw(i, my, send, g)
+        g.setColor(Color.GREEN)
+        draw(i, my+linkHeight/2, receive, g)
+      }
       cpuHeight + 10 + keys.size * linkHeight
     }
 

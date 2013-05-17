@@ -18,13 +18,13 @@ import scala.swing.TextField
 class GraphSched(update: Component => Unit) {
   import Modeller._
   val maxIoField = new TextField(5) { text = "3" }
-  val ioF  = createGet(maxIoField)
+  val ioF = createGet(maxIoField)
   val button = new Button("show")
   val panel = new FlowPanel(l("io:"), maxIoField, l("show"), button) {
     listenTo(button)
     reactions += {
       case ButtonClicked(`button`) =>
-        for(io <- ioF()) show(io)
+        for (io <- ioF()) show(io)
     }
   }
 
@@ -95,10 +95,10 @@ object Modeller {
       val updLines = lines.updated(lineNum, newLine)
       Env(updLines)
     }
-    
-    def findSpace(startTime: Time, size: Time, from: Proc, to:Proc): Time ={
+
+    def findSpace(startTime: Time, size: Time, from: Proc, to: Proc): Time = {
       val ziped = this(from).links(to.id) zip this(to).receive(from.id)
-      val oks = ziped.map{
+      val oks = ziped.map {
         case (Idle, Idle) => true
         case _ => false
       }
@@ -119,14 +119,12 @@ object Modeller {
         val from = lineFrom.proc
         val to = lineTo.proc
         val firstSpace = findSpace(startTime, w, from, to)
-        val loadedFrom = lineFrom.links.values.collect {
-          case ls if ls(firstSpace) != Idle => 1
-        }.sum
-        val loadedTo = lineTo.receive.values.collect {
-          case ls if ls(firstSpace) != Idle => 1
-        }.sum
-        
-        if (loadedFrom < lineFrom.maxIO && loadedTo < lineTo.maxIO) firstSpace
+        val ok = {
+          val frees = lines.map(line => line.free.drop(firstSpace).take(w))
+          frees.forall(l => l.forall(x => x < lineFrom.maxIO))
+        }
+
+        if (ok) firstSpace
         else finSpaceRecur(firstSpace + 1, lineFrom, lineTo)
       }
 
@@ -183,21 +181,40 @@ object Modeller {
 
     def lastCpu = cpu.lastIndexWhere(_ != Idle)
 
-    def moveFrom(procId: Int, from: Int, w: Int, task: Task) = 
+    def moveFrom(procId: Int, from: Int, w: Int, task: Task) =
       move(procId, from, w, task, true)
-    
-    def moveTo(procId: Int, from: Int, w: Int, task: Task) = 
+
+    def moveTo(procId: Int, from: Int, w: Int, task: Task) =
       move(procId, from, w, task, false)
-    
-    private def move(procId: Int, from: Int, w: Int, task: Task, in:Boolean) = {
-      val map = if(in)links else receive
+
+    private def move(procId: Int, from: Int, w: Int, task: Task, in: Boolean) = {
+      val map = if (in) links else receive
       val slots = map(procId)
       val range = from until (from + w)
       require(range.forall(i => slots(i) == Idle))
       val updSlots = range.foldLeft(slots)((ss, i) => ss.updated(i, Move(from, task, w)))
       val updLinks = map + (procId -> updSlots)
-      if(in) TimeLine(proc, cpu, updLinks, receive, maxIO)
+      if (in) TimeLine(proc, cpu, updLinks, receive, maxIO)
       else TimeLine(proc, cpu, links, updLinks, maxIO)
+    }
+
+    def free = {
+      val keys = links.keys
+      val to = keys.map(links)
+      val from = keys.map(receive)
+      (to zip from).map {
+        case (l1, l2) =>
+          val zipped = l1 zip l2
+          zipped.map {
+            case (Idle, Idle) => 0
+            case _ => 1
+          }
+      }.reduce { (l1, l2) =>
+        l1.zip(l2).map {
+          case (x1, x2) => x1 + x2
+        }
+      }
+
     }
 
     def timeForTask(task: Task) = {
@@ -251,7 +268,6 @@ object Modeller {
         case Some((task, line, time)) =>
           val updEnv = env.startTask(time, line, task)
 
-
           makeStep(updEnv, tasks.filter(_ != task))
         case None =>
           //ok, find tasks to move
@@ -263,11 +279,11 @@ object Modeller {
             depTask = dep.task
             if line.tasksData contains depTask
           } yield line).distinct
-          
+
           val dst = linesWithData.sortBy(line => procPriors.indexOf(line.proc)).reverse.sortBy(_.lastCpu).reverse.head
           val toMove = task.dependsOn.map {
             case Dep(depTask, w) =>
-              val line = env.lines.find{
+              val line = env.lines.find {
                 line => line.alreadyCalculated.contains(depTask)
               }.get
               val path = {
@@ -276,12 +292,12 @@ object Modeller {
                 from.shortestPathTo(to).get.nodes.map(_.value)
               }
               (depTask, path, w)
-          }.filterNot{case (dt, _, _) => dst.alreadyCalculated.contains(dt)}
-          val updEnv = toMove.foldLeft(env) { (tmpEnv, move) => move match{
-            case (task, path, w) => tmpEnv.move(task, path, w)
-          }}
-
-
+          }.filterNot { case (dt, _, _) => dst.alreadyCalculated.contains(dt) }
+          val updEnv = toMove.foldLeft(env) { (tmpEnv, move) =>
+            move match {
+              case (task, path, w) => tmpEnv.move(task, path, w)
+            }
+          }
 
           makeStep(updEnv, tasks)
       }
