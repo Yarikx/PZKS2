@@ -13,26 +13,29 @@ import scalax.collection.GraphEdge.UnDiEdge
 import SchedUtils._
 import scala.annotation.tailrec
 import scala.swing.Component
+import scala.swing.TextField
 
 class GraphSched(update: Component => Unit) {
   import Modeller._
+  val maxIoField = new TextField(5) { text = "3" }
+  val ioF  = createGet(maxIoField)
   val button = new Button("show")
-  val panel = new FlowPanel(l("show"), button) {
+  val panel = new FlowPanel(l("io:"), maxIoField, l("show"), button) {
     listenTo(button)
     reactions += {
       case ButtonClicked(`button`) =>
-        show()
+        for(io <- ioF()) show(io)
     }
   }
 
-  def show() = {
+  def show(implicit maxIo: Int) = {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
     val env = transformAndSchedule(systemDiGraph, taskGraph)
     update(makeUi(env))
   }
 
-  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge]): Env = {
+  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge])(implicit maxIo: Int): Env = {
 
     val systemGraph = {
       val edges = systemDiGraph.edges.map { edge =>
@@ -51,8 +54,8 @@ class GraphSched(update: Component => Unit) {
     schedule(sortedSystem, sortedTasks, systemGraph)
   }
 
-  def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge]): Env = {
-    val startEnv = Modeller.buildStartEnv(procs)
+  def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge])(implicit maxIo: Int): Env = {
+    val startEnv = Modeller.buildStartEnv(procs, maxIo)
     makeStep(startEnv, tasks)(procs, systemGraph)
   }
 
@@ -212,16 +215,15 @@ object Modeller {
 
   object TimeLine {
     val N = 100
-    private val maxIO = 5
     private val startSlots = (1 to N).map(_ => Idle).toList
     private def buildLinks(p: Proc) = p.neighbors.map(n => (n -> startSlots)).toMap
-    def apply(p: Proc) = new TimeLine(p, startSlots, buildLinks(p), buildLinks(p), maxIO)
+    def apply(p: Proc, maxIo: Int) = new TimeLine(p, startSlots, buildLinks(p), buildLinks(p), maxIo)
   }
 
   //stuff
 
-  def buildStartEnv(procs: Seq[Proc]): Env =
-    Env(procs.toList.map(p => TimeLine(p)))
+  def buildStartEnv(procs: Seq[Proc], maxIo: Int): Env =
+    Env(procs.toList.map(p => TimeLine(p, maxIo)))
 
   def makeStep(env: Env, tasks: List[Task])(implicit procPriors: List[Proc], systemG: Graph[Proc, UnDiEdge]): Env =
     if (tasks isEmpty)
