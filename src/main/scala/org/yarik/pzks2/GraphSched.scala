@@ -29,7 +29,7 @@ class GraphSched(update: Component => Unit) {
     }
   }
 
-  def show(implicit maxIo: Int, duplex:Boolean) = {
+  def show(implicit maxIo: Int, duplex: Boolean) = {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
     Env.duplex = duplex
@@ -83,8 +83,8 @@ object Modeller {
   case class Move(start: Time, task: Task, w: Time) extends State {
     override def toString = s"M[$task]"
   }
-  
-  object Env{
+
+  object Env {
     var duplex = false
   }
   case class Env(lines: List[TimeLine]) {
@@ -111,6 +111,21 @@ object Modeller {
       slided.indexWhere(_.forall(x => x)) + startTime
     }
 
+    @tailrec final def finSpaceRecur(startTime: Time, lineFrom: TimeLine, lineTo: TimeLine, w: Time, task: Task): Time = {
+      val from = lineFrom.proc
+      val to = lineTo.proc
+      val firstSpace = findSpace(startTime, w, from, to)
+      val ok = {
+        val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
+        val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
+        val frees = List(updLineFrom, updLineTo).map(line => line.free.drop(firstSpace).take(w))
+        frees.forall(l => l.forall(_ <= lineFrom.maxIO))
+      }
+
+      if (ok) firstSpace
+      else finSpaceRecur(firstSpace + 1, lineFrom, lineTo, w, task)
+    }
+
     def move(task: Task, path: List[Proc], w: Time): Env = {
       require(path.size > 1)
       val from :: toGo = path
@@ -120,21 +135,6 @@ object Modeller {
           .getOrElse(
             throw new IllegalStateException(s"can't find caclucated $task"))
 
-      @tailrec def finSpaceRecur(startTime: Time, lineFrom: TimeLine, lineTo: TimeLine): Time = {
-        val from = lineFrom.proc
-        val to = lineTo.proc
-        val firstSpace = findSpace(startTime, w, from, to)
-        val ok = {
-          val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
-          val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
-          val frees = List(updLineFrom, updLineTo).map(line => line.free.drop(firstSpace).take(w))
-          frees.forall(l => l.forall(_ <= lineFrom.maxIO))
-        }
-
-        if (ok) firstSpace
-        else finSpaceRecur(firstSpace + 1, lineFrom, lineTo)
-      }
-
       @tailrec def loop(startTime: Time, path: List[Proc], env: Env): Env =
         path match {
           case from :: to :: rest =>
@@ -142,7 +142,7 @@ object Modeller {
             val lineTo = env(to)
             val indexFrom = env.lines.indexOf(lineFrom)
             val indexTo = env.lines.indexOf(lineTo)
-            val firstSpace = finSpaceRecur(startTime, lineFrom, lineTo)
+            val firstSpace = finSpaceRecur(startTime, lineFrom, lineTo, w, task)
             val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
             val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
             val updEnv = Env(env.lines.updated(indexFrom, updLineFrom).updated(indexTo, updLineTo))
@@ -216,7 +216,7 @@ object Modeller {
             case (Idle, Idle) => 0
             case (m1: Move, Idle) => 1
             case (Idle, m1: Move) => 1
-            case _ => if(Env.duplex) 1 else 2
+            case _ => if (Env.duplex) 1 else 2
           }
       }.reduce { (l1, l2) =>
         l1.zip(l2).map {
@@ -262,31 +262,50 @@ object Modeller {
     else {
       val headTask :: rst = tasks
       val dst = env.lines.sortBy(line => procPriors.indexOf(line.proc)).sortBy(_.lastCpu).head
-      if(headTask.dependsOn.map(_.task).forall(dst.tasksData.contains)){
+      if (headTask.dependsOn.map(_.task).forall(dst.tasksData.contains)) {
         val time = dst.timeForTask(headTask)
         val updEnv = env.startTask(time, dst, headTask)
         makeStep(updEnv, rst)
       } else {
         //ok, find tasks to move
-          val toMove = headTask.dependsOn.map {
-            case Dep(depTask, w) =>
-              val line = env.lines.find {
-                line => line.alreadyCalculated.contains(depTask)
+        val toMove = headTask.dependsOn.map {
+          case Dep(depTask, w) =>
+            val line = env.lines.find {
+              line => line.alreadyCalculated.contains(depTask)
             }.get
-              val path = {
-                val from = systemG.nodes.get(line.proc)
-                val to = systemG.nodes.get(dst.proc)
-                from.shortestPathTo(to).get.nodes.map(_.value)
-              }
-              (depTask, path, w)
-          }.filterNot { case (dt, _, _) => dst.tasksData.contains(dt) }
-          val updEnv = toMove.foldLeft(env) { (tmpEnv, move) =>
-            move match {
-              case (task, path, w) => tmpEnv.move(task, path, w)
+            val path = {
+              val from = systemG.nodes.get(line.proc)
+              val to = systemG.nodes.get(dst.proc)
+              from.shortestPathTo(to).get.nodes.map(_.value)
             }
-          }
+            (depTask, path, w)
+        }.filterNot { case (dt, _, _) => dst.tasksData.contains(dt) }
 
-          makeStep(updEnv, tasks)
+        @tailrec def putMoves(env: Env, toMove: List[(Task, List[Proc], Time)]): Env = {
+          toMove match {
+            case Nil => env
+            case (task, path, w) :: Nil => env.move(task, path, w)
+            case list =>
+              val ((task, path, w) :: tail) = toMove.sortBy {
+                case (depTask, from :: to :: _, w) =>
+                  val startTime =
+                    env.apply(from)
+                      .calculationTime(depTask)
+                      .get
+
+                  val lineFrom = env(from)
+                  val lineTo = env(to)
+                  val firstSpace = env.finSpaceRecur(startTime, lineFrom, lineTo, w, depTask)
+                  firstSpace
+              }
+              val updEnv = env.move(task, path, w)
+              putMoves(updEnv, tail)
+          }
+        }
+
+        val updEnv = putMoves(env, toMove.toList)
+
+        makeStep(updEnv, tasks)
       }
     }
 }
