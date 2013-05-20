@@ -251,38 +251,18 @@ object Modeller {
     if (tasks isEmpty)
       env
     else {
-      //try to find ready to calculate tasks
-      val goodPair = tasks.map { task =>
-        val depTasks = task.dependsOn.map(_.task)
-        val okLines = env.lines.filter { line =>
-          val set = line.tasksData
-          depTasks.forall(set.contains)
-        }.map { line =>
-          val time = line.timeForTask(task)
+      val firstTask :: rst = tasks
+      val dst = env.lines.sortBy(line => procPriors.indexOf(line.proc)).sortBy(_.lastCpu).head
+      if(firstTask.dependsOn.map(_.task).forall(dst.tasksData.contains)){
+        val time = dst.timeForTask(firstTask)
+        val updEnv = env.startTask(time, dst, firstTask)
+        makeStep(updEnv, rst)
+      }else{
+        //ok, find tasks to move
+          require(!firstTask.dependsOn.isEmpty)
 
-          (task, line, time)
-        }
-        okLines.sortBy(_._3).headOption
-      }.collect { case Some(o) => o }.sortBy(_._3).headOption
-
-      goodPair match {
-        case Some((task, line, time)) =>
-          val updEnv = env.startTask(time, line, task)
-
-          makeStep(updEnv, tasks.filter(_ != task))
-        case None =>
-          //ok, find tasks to move
-          val task = tasks.head
-          require(!task.dependsOn.isEmpty)
-          val linesWithData = (for {
-            line <- env.lines
-            dep <- task.dependsOn
-            depTask = dep.task
-            if line.tasksData contains depTask
-          } yield line).distinct
-
-          val dst = linesWithData.sortBy(line => procPriors.indexOf(line.proc)).reverse.sortBy(_.lastCpu).reverse.head
-          val toMove = task.dependsOn.map {
+          println(s"dst line is ${dst.proc}")
+          val toMove = firstTask.dependsOn.map {
             case Dep(depTask, w) =>
               val line = env.lines.find {
                 line => line.alreadyCalculated.contains(depTask)
