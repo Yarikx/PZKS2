@@ -6,7 +6,6 @@ import scala.swing.Component
 import scala.swing.FlowPanel
 import scala.swing.TextField
 import scala.swing.event.ButtonClicked
-
 import SchedUtils.buildTasks
 import SchedUtils.makeUi
 import UiHelper._
@@ -14,23 +13,26 @@ import scalax.collection.GraphEdge.UnDiEdge
 import scalax.collection.GraphPredef.any2EdgeAssoc
 import scalax.collection.edge.WDiEdge
 import scalax.collection.mutable.Graph
+import scala.swing.CheckBox
 
 class GraphSched(update: Component => Unit) {
   import Modeller._
   val maxIoField = new TextField(5) { text = "3" }
   val ioF = createGet(maxIoField)
+  val duplexCheck = new CheckBox("duplex")
   val button = new Button("show")
-  val panel = new FlowPanel(l("io:"), maxIoField, l("show"), button) {
+  val panel = new FlowPanel(l("io:"), maxIoField, duplexCheck, l("show"), button) {
     listenTo(button)
     reactions += {
       case ButtonClicked(`button`) =>
-        for (io <- ioF()) show(io)
+        for (io <- ioF()) show(io, duplexCheck.selected)
     }
   }
 
-  def show(implicit maxIo: Int) = {
+  def show(implicit maxIo: Int, duplex:Boolean) = {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
+    Env.duplex = duplex
     val env = transformAndSchedule(systemDiGraph, taskGraph)
     update(makeUi(env))
   }
@@ -81,7 +83,10 @@ object Modeller {
   case class Move(start: Time, task: Task, w: Time) extends State {
     override def toString = s"M[$task]"
   }
-
+  
+  object Env{
+    var duplex = false
+  }
   case class Env(lines: List[TimeLine]) {
     def apply(proc: Proc) = lines.find(l => l.proc == proc).get
 
@@ -209,7 +214,9 @@ object Modeller {
           val zipped = l1 zip l2
           zipped.map {
             case (Idle, Idle) => 0
-            case _ => 1
+            case (m1: Move, Idle) => 1
+            case (Idle, m1: Move) => 1
+            case _ => if(Env.duplex) 1 else 2
           }
       }.reduce { (l1, l2) =>
         l1.zip(l2).map {
@@ -253,22 +260,19 @@ object Modeller {
     if (tasks isEmpty)
       env
     else {
-      val firstTask :: rst = tasks
+      val headTask :: rst = tasks
       val dst = env.lines.sortBy(line => procPriors.indexOf(line.proc)).sortBy(_.lastCpu).head
-      if(firstTask.dependsOn.map(_.task).forall(dst.tasksData.contains)){
-        val time = dst.timeForTask(firstTask)
-        val updEnv = env.startTask(time, dst, firstTask)
+      if(headTask.dependsOn.map(_.task).forall(dst.tasksData.contains)){
+        val time = dst.timeForTask(headTask)
+        val updEnv = env.startTask(time, dst, headTask)
         makeStep(updEnv, rst)
-      }else{
+      } else {
         //ok, find tasks to move
-          require(!firstTask.dependsOn.isEmpty)
-
-          println(s"dst line is ${dst.proc}")
-          val toMove = firstTask.dependsOn.map {
+          val toMove = headTask.dependsOn.map {
             case Dep(depTask, w) =>
               val line = env.lines.find {
                 line => line.alreadyCalculated.contains(depTask)
-              }.get
+            }.get
               val path = {
                 val from = systemG.nodes.get(line.proc)
                 val to = systemG.nodes.get(dst.proc)
