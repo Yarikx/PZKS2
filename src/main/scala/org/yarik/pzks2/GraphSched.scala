@@ -120,8 +120,10 @@ object Modeller {
         val to = lineTo.proc
         val firstSpace = findSpace(startTime, w, from, to)
         val ok = {
-          val frees = List(lineFrom, lineTo).map(line => line.free.drop(firstSpace).take(w))
-          frees.forall(l => l.forall(_ < lineFrom.maxIO))
+          val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
+          val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
+          val frees = List(updLineFrom, updLineTo).map(line => line.free.drop(firstSpace).take(w))
+          frees.forall(l => l.forall(_ <= lineFrom.maxIO))
         }
 
         if (ok) firstSpace
