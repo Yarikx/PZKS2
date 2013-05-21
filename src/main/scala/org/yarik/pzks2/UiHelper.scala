@@ -184,7 +184,7 @@ abstract class Gui() {
 
           case ButtonClicked(`del`) =>
             val v = findV(fromField.text.toInt)
-            g.remove(v)
+            v.foreach(g -= _)
             update()
 
           case ButtonClicked(`addEdge`) =>
