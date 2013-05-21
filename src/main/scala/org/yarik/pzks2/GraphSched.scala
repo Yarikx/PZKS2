@@ -93,6 +93,9 @@ object Modeller {
     def isDone(task: Task) = lines.exists(_.tasksData.contains(task))
     def isPreparedFor(task: Task) = task.dependsOn.map(_.task).forall(isDone)
 
+    def cpuSum = lines.map(_.lastCpu).sum
+    def cpuMax = lines.map(_.lastCpu).max
+
     def startTask(time: Time, line: TimeLine, task: Task): Env = {
       require(isPreparedFor(task))
       val lineNum = lines.indexOf(line)
@@ -186,7 +189,7 @@ object Modeller {
       TimeLine(proc, updCpu, sends, receives, maxIO)
     }
 
-    def lastCpu = cpu.lastIndexWhere(_ != Idle)
+    def lastCpu = scala.math.max(cpu.lastIndexWhere(_ != Idle), 0)
 
     def moveFrom(procId: Int, from: Int, w: Int, task: Task) =
       move(procId, from, w, task, true)
@@ -257,55 +260,60 @@ object Modeller {
     Env(procs.toList.map(p => TimeLine(p, maxIo)))
 
   def makeStep(env: Env, tasks: List[Task])(implicit procPriors: List[Proc], systemG: Graph[Proc, UnDiEdge]): Env =
-    if (tasks isEmpty)
-      env
+    if (tasks isEmpty) env
     else {
-      val headTask :: rst = tasks
-      val dst = env.lines.sortBy(line => procPriors.indexOf(line.proc)).sortBy(_.lastCpu).head
-      if (headTask.dependsOn.map(_.task).forall(dst.tasksData.contains)) {
-        val time = dst.timeForTask(headTask)
-        val updEnv = env.startTask(time, dst, headTask)
-        makeStep(updEnv, rst)
-      } else {
-        //ok, find tasks to move
-        val toMove = headTask.dependsOn.map {
-          case Dep(depTask, w) =>
-            val line = env.lines.find {
-              line => line.alreadyCalculated.contains(depTask)
-            }.get
-            val path = {
-              val from = systemG.nodes.get(line.proc)
-              val to = systemG.nodes.get(dst.proc)
-              from.shortestPathTo(to).get.nodes.map(_.value)
-            }
-            (depTask, path, w)
-        }.filterNot { case (dt, _, _) => dst.tasksData.contains(dt) }
-
-        @tailrec def putMoves(env: Env, toMove: List[(Task, List[Proc], Time)]): Env = {
-          toMove match {
-            case Nil => env
-            case (task, path, w) :: Nil => env.move(task, path, w)
-            case list =>
-              val ((task, path, w) :: tail) = toMove.sortBy {
-                case (depTask, from :: to :: _, w) =>
-                  val startTime =
-                    env.apply(from)
-                      .calculationTime(depTask)
-                      .get
-
-                  val lineFrom = env(from)
-                  val lineTo = env(to)
-                  val firstSpace = env.finSpaceRecur(startTime, lineFrom, lineTo, w, depTask)
-                  firstSpace
-              }
-              val updEnv = env.move(task, path, w)
-              putMoves(updEnv, tail)
-          }
-        }
-
-        val updEnv = putMoves(env, toMove.toList)
-
-        makeStep(updEnv, tasks)
+      def startTask(envArg:Env, line: TimeLine, task:Task) = {
+        val time = line.timeForTask(task)
+        envArg.startTask(time, line, task)
       }
+      
+      val headTask :: rst = tasks
+      val results = env.lines.map { dst =>
+        if (headTask.dependsOn.map(_.task).forall(dst.tasksData.contains)) {
+          startTask(env, dst, headTask)
+        } else {
+          //ok, find tasks to move
+          val toMove = headTask.dependsOn.map {
+            case Dep(depTask, w) =>
+              val line = env.lines.find {
+                line => line.alreadyCalculated.contains(depTask)
+              }.get
+              val path = {
+                val from = systemG.nodes.get(line.proc)
+                val to = systemG.nodes.get(dst.proc)
+                from.shortestPathTo(to).get.nodes.map(_.value)
+              }
+              (depTask, path, w)
+          }.filterNot { case (dt, _, _) => dst.tasksData.contains(dt) }
+
+          @tailrec def putMoves(env: Env, toMove: List[(Task, List[Proc], Time)]): Env = {
+            toMove match {
+              case Nil => env
+              case (task, path, w) :: Nil => env.move(task, path, w)
+              case list =>
+                val ((task, path, w) :: tail) = toMove.sortBy {
+                  case (depTask, from :: to :: _, w) =>
+                    val startTime =
+                      env.apply(from)
+                        .calculationTime(depTask)
+                        .get
+
+                    val lineFrom = env(from)
+                    val lineTo = env(to)
+                    val firstSpace = env.finSpaceRecur(startTime, lineFrom, lineTo, w, depTask)
+                    firstSpace
+                }
+                val updEnv = env.move(task, path, w)
+                putMoves(updEnv, tail)
+            }
+          }
+
+          val updEnv = putMoves(env, toMove.toList)
+          val newLine = updEnv(dst.proc)
+          startTask(updEnv, newLine, headTask)
+        }
+      }
+      val nextEnv = results.sortBy(_.cpuSum).minBy(_.cpuMax)
+      makeStep(nextEnv, rst)
     }
 }
