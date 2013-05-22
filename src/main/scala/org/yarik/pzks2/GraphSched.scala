@@ -313,7 +313,7 @@ object Modeller {
           startTask(updEnv, newLine, headTask)
         }
       }
-      val nextEnv = results.sortBy(_.cpuSum).minBy(_.cpuMax)
+      val nextEnv = results.sortBy(_.cpuSum).sortBy(_.cpuMax).head
       makeStep(nextEnv, rst)
     }
 }
