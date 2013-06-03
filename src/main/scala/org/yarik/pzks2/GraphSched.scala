@@ -33,7 +33,10 @@ class GraphSched(update: Component => Unit) {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
     Env.duplex = duplex
+    val currentTime = System.currentTimeMillis()
     val env = transformAndSchedule(systemDiGraph, taskGraph)
+    val taked = System.currentTimeMillis() - currentTime;
+    println(s"taked $taked to calculate system")
     update(makeUi(env))
   }
 
@@ -248,7 +251,7 @@ object Modeller {
   }
 
   object TimeLine {
-    val N = 100
+    val N = 1000
     private val startSlots = (1 to N).map(_ => Idle).toList
     private def buildLinks(p: Proc) = p.neighbors.map(n => (n -> startSlots)).toMap
     def apply(p: Proc, maxIo: Int) = new TimeLine(p, startSlots, buildLinks(p), buildLinks(p), maxIo)
@@ -268,8 +271,9 @@ object Modeller {
       }
       
       val headTask :: rst = tasks
-      val results = env.lines.map { dst =>
-        if (headTask.dependsOn.map(_.task).forall(dst.tasksData.contains)) {
+      val results = env.lines.par.map { dst =>
+        val tasksData = dst.tasksData
+        if (headTask.dependsOn.map(_.task).forall(tasksData.contains)) {
           startTask(env, dst, headTask)
         } else {
           //ok, find tasks to move
@@ -284,7 +288,7 @@ object Modeller {
                 from.shortestPathTo(to).get.nodes.map(_.value)
               }
               (depTask, path, w)
-          }.filterNot { case (dt, _, _) => dst.tasksData.contains(dt) }
+          }.filterNot { case (dt, _, _) => tasksData.contains(dt) }
 
           @tailrec def putMoves(env: Env, toMove: List[(Task, List[Proc], Time)]): Env = {
             toMove match {
@@ -313,7 +317,7 @@ object Modeller {
           startTask(updEnv, newLine, headTask)
         }
       }
-      val nextEnv = results.sortBy(_.cpuSum).sortBy(_.cpuMax).head
+      val nextEnv = results.seq.sortBy(_.cpuSum).sortBy(_.cpuMax).head
       makeStep(nextEnv, rst)
     }
 }
