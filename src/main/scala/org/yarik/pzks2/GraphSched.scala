@@ -32,7 +32,6 @@ class GraphSched(update: Component => Unit) {
   def show(implicit maxIo: Int, duplex: Boolean) = {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
-    Env.duplex = duplex
     val currentTime = System.currentTimeMillis()
     val env = transformAndSchedule(systemDiGraph, taskGraph)
     val taked = System.currentTimeMillis() - currentTime;
@@ -40,7 +39,7 @@ class GraphSched(update: Component => Unit) {
     update(makeUi(env))
   }
 
-  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge])(implicit maxIo: Int): Env = {
+  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge])(implicit maxIo: Int, duplex: Boolean): Env = {
 
     val systemGraph = {
       val edges = systemDiGraph.edges.map { edge =>
@@ -59,8 +58,8 @@ class GraphSched(update: Component => Unit) {
     schedule(sortedSystem, sortedTasks, systemGraph)
   }
 
-  def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge])(implicit maxIo: Int): Env = {
-    val startEnv = Modeller.buildStartEnv(procs, maxIo)
+  def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge])(implicit maxIo: Int, duplex: Boolean): Env = {
+    val startEnv = Modeller.buildStartEnv(procs, maxIo, duplex)
     makeStep(startEnv, tasks)(procs, systemGraph)
   }
 
@@ -87,10 +86,7 @@ object Modeller {
     override def toString = s"M[$task]"
   }
 
-  object Env {
-    var duplex = false
-  }
-  case class Env(lines: List[TimeLine]) {
+  case class Env(lines: List[TimeLine], duplex: Boolean) {
     def apply(proc: Proc) = lines.find(l => l.proc == proc).get
 
     def isDone(task: Task) = lines.exists(_.tasksData.contains(task))
@@ -104,7 +100,7 @@ object Modeller {
       val lineNum = lines.indexOf(line)
       val newLine = line.updCpu(time, Work(time, task))
       val updLines = lines.updated(lineNum, newLine)
-      Env(updLines)
+      Env(updLines, duplex)
     }
 
     def findSpace(startTime: Time, size: Time, from: Proc, to: Proc): Time = {
@@ -124,7 +120,7 @@ object Modeller {
       val ok = {
         val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
         val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
-        val frees = List(updLineFrom, updLineTo).map(line => line.free.drop(firstSpace).take(w))
+        val frees = List(updLineFrom, updLineTo).map(line => line.free(duplex).drop(firstSpace).take(w))
         frees.forall(l => l.forall(_ <= lineFrom.maxIO))
       }
 
@@ -151,7 +147,7 @@ object Modeller {
             val firstSpace = finSpaceRecur(startTime, lineFrom, lineTo, w, task)
             val updLineFrom = lineFrom.moveFrom(to.id, firstSpace, w, task)
             val updLineTo = lineTo.moveTo(from.id, firstSpace, w, task)
-            val updEnv = Env(env.lines.updated(indexFrom, updLineFrom).updated(indexTo, updLineTo))
+            val updEnv = Env(env.lines.updated(indexFrom, updLineFrom).updated(indexTo, updLineTo), duplex)
             loop(firstSpace + w, to :: rest, updEnv)
           case _ => env
         }
@@ -211,7 +207,7 @@ object Modeller {
       else TimeLine(proc, cpu, sends, updLinks, maxIO)
     }
 
-    def free = {
+    def free(duplex: Boolean) = {
       val keys = sends.keys.toList
       val to = keys.map(sends)
       val from = keys.map(receives)
@@ -222,7 +218,7 @@ object Modeller {
             case (Idle, Idle) => 0
             case (m1: Move, Idle) => 1
             case (Idle, m1: Move) => 1
-            case _ => if (Env.duplex) 1 else 2
+            case _ => if (duplex) 1 else 2
           }
       }.reduce { (l1, l2) =>
         l1.zip(l2).map {
@@ -259,8 +255,8 @@ object Modeller {
 
   //stuff
 
-  def buildStartEnv(procs: Seq[Proc], maxIo: Int): Env =
-    Env(procs.toList.map(p => TimeLine(p, maxIo)))
+  def buildStartEnv(procs: Seq[Proc], maxIo: Int, duplex: Boolean): Env =
+    Env(procs.toList.map(p => TimeLine(p, maxIo)), duplex)
 
   def makeStep(env: Env, tasks: List[Task])(implicit procPriors: List[Proc], systemG: Graph[Proc, UnDiEdge]): Env =
     if (tasks isEmpty) env
