@@ -8,6 +8,8 @@ import scalax.collection.edge.WDiEdge
 import scala.swing.Label
 import java.awt.Graphics2D
 import java.awt.Color
+import java.awt.Dimension
+import scala.swing.ScrollPane
 
 object SchedUtils {
   private def buildTask(v: Vertex, g: Graph[Vertex, WDiEdge]): Task = {
@@ -24,11 +26,17 @@ object SchedUtils {
     vs.map(v => buildTask(v, g))
 
 
-  def makeUi(env: Env)= new Label{
+  def makeUi(env: Env)= new ScrollPane(new Label{
     val cpuHeight = 20
     val linkHeight = 20
     val margin = 20
     val stepWidth = 20
+    
+    val width = env.cpuMax*stepWidth + 100
+    val height = env.lines.map(line => 1 + line.sends.size * 2).sum * linkHeight + linkHeight
+    
+    minimumSize_=(new Dimension(width, height))
+    preferredSize_=(new Dimension(width, height))
 
     private def draw(i: Int,  y: Int, state: State, g: Graphics2D){
       val x = margin +i*stepWidth
@@ -81,5 +89,5 @@ object SchedUtils {
 
       env.lines.foldLeft(50)((y, line) => y + paintLine(line, y, g))
     }
-  }
+  })
 }

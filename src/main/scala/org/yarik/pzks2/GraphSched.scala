@@ -92,8 +92,8 @@ object Modeller {
     def isDone(task: Task) = lines.exists(_.tasksData.contains(task))
     def isPreparedFor(task: Task) = task.dependsOn.map(_.task).forall(isDone)
 
-    def cpuSum = lines.map(_.lastCpu).sum
-    def cpuMax = lines.map(_.lastCpu).max
+    def cpuSum = lines.par.map(_.lastCpu).sum
+    def cpuMax = lines.par.map(_.lastCpu).max
 
     def startTask(time: Time, line: TimeLine, task: Task): Env = {
       require(isPreparedFor(task))
