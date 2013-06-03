@@ -302,6 +302,7 @@ object Modeller {
                     val lineTo = env(to)
                     val firstSpace = env.finSpaceRecur(startTime, lineFrom, lineTo, w, depTask)
                     firstSpace
+                  case _ => throw new IllegalStateException("path is less then 2 points, can not be true")
                 }
                 val updEnv = env.move(task, path, w)
                 putMoves(updEnv, tail)
