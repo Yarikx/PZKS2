@@ -15,7 +15,7 @@ import scalax.collection.edge.WDiEdge
 import scalax.collection.mutable.Graph
 import scala.swing.CheckBox
 
-class GraphSched(update: Component => Unit) {
+class GraphSched(update: (Component, String) => Unit) {
   import Modeller._
   val maxIoField = new TextField(5) { text = "3" }
   val ioF = createGet(maxIoField)
@@ -32,38 +32,23 @@ class GraphSched(update: Component => Unit) {
   def show(implicit maxIo: Int, duplex: Boolean) = {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
-    val currentTime = System.currentTimeMillis()
-    val env = transformAndSchedule(systemDiGraph, taskGraph, new Sorter(taskGraph, 3))
-    val taked = System.currentTimeMillis() - currentTime;
-    println(s"taked $taked to calculate system")
-    update(makeUi(env))
-  }
-
-  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge], sorter: Sorter)(implicit maxIo: Int, duplex: Boolean): Env = {
-
-    val systemGraph = {
-      val edges = systemDiGraph.edges.map { edge =>
-        val l = Proc(edge.from.value.id, edge.from.neighbors.map(n => n.id).toList)
-        val r = Proc(edge.to.value.id, edge.to.neighbors.map(n => n.id).toList)
-        l ~ r
-      }.toArray
-
-      Graph[Proc, UnDiEdge](edges: _*)
+    
+    for{
+      sortAlg <-Sorter.algs
+      sorter = new Sorter(taskGraph, sortAlg)
+      (schedAlg, schName) <- Modeller.algsWithNames
+    }{
+      val env = SchedUtils.transformAndSchedule(systemDiGraph, taskGraph, sorter, schedAlg)
+      println("calculated")
+      update(makeUi(env), s"sorter $sortAlg, sched $schName")
     }
-
-    val sorted = sorter.sort
-    val sortedSystem = systemGraph.nodes.toList.sortBy(x => x.degree).map(_.value).reverse
-    val sortedTasks = buildTasks(sorted, taskGraph)
-
-    schedule(sortedSystem, sortedTasks, systemGraph)
+    
+//    val currentTime = System.currentTimeMillis()
+//    
+//    val taked = System.currentTimeMillis() - currentTime;
+//    println(s"taked $taked to calculate system")
+    
   }
-
-  def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge])(implicit maxIo: Int, duplex: Boolean): Env = {
-    val startEnv = Modeller.buildStartEnv(procs, maxIo, duplex)
-
-    makeStep(startEnv, tasks)(algs(1))(procs, systemGraph)
-  }
-
 }
 
 case class Proc(id: Int, neighbors: List[Int]) {
@@ -274,6 +259,7 @@ object Modeller {
   }
   
   val algs = Seq(badAlg, goodAlg)
+  val algsWithNames = algs zip Seq("4", "7")
 
   def makeStep(env: Env, tasks: List[Task])(alg: Alg)(implicit procPriors: List[Proc], systemG: Graph[Proc, UnDiEdge]): Env =
     if (tasks isEmpty) env

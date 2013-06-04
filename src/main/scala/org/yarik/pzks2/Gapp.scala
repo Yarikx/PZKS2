@@ -6,11 +6,12 @@ import scala.swing.BorderPanel
 
 object Gapp extends SimpleSwingApplication {
 
-  val sched = new GraphSched(comp => {
-    val page = new Page("result", comp)
-    if (tp.pages.size < 3) tp.pages += page
-    else tp.pages.update(2, page)
-    tp.selection.index = 2
+  val sched = new GraphSched((comp, name) => {
+    val page = new Page(name, comp)
+//    if (tp.pages.size < 3) 
+      tp.pages += page
+//    else tp.pages.update(2, page)
+//    tp.selection.index = 2
   })
 
   val tp = new TabbedPane {

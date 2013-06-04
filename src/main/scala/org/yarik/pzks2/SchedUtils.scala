@@ -1,7 +1,7 @@
 package org.yarik.pzks2
 
 import Modeller._
-import scalax.collection.Graph
+import scalax.collection.mutable.Graph
 import scalax.collection.GraphPredef.any2EdgeAssoc
 import scalax.collection.edge.Implicits.edge2WDiEdgeAssoc
 import scalax.collection.edge.WDiEdge
@@ -10,8 +10,34 @@ import java.awt.Graphics2D
 import java.awt.Color
 import java.awt.Dimension
 import scala.swing.ScrollPane
+import scalax.collection.GraphEdge.UnDiEdge
 
 object SchedUtils {
+  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge], sorter: Sorter, schedAlg: Alg)(implicit maxIo: Int, duplex: Boolean): Env = {
+
+    val systemGraph = {
+      val edges = systemDiGraph.edges.map { edge =>
+        val l = Proc(edge.from.value.id, edge.from.neighbors.map(n => n.id).toList)
+        val r = Proc(edge.to.value.id, edge.to.neighbors.map(n => n.id).toList)
+        l ~ r
+      }.toArray
+
+      Graph[Proc, UnDiEdge](edges: _*)
+    }
+
+    val sorted = sorter.sort
+    val sortedSystem = systemGraph.nodes.toList.sortBy(x => x.degree).map(_.value).reverse
+    val sortedTasks = buildTasks(sorted, taskGraph)
+
+    schedule(sortedSystem, sortedTasks, systemGraph, schedAlg)
+  }
+
+  def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge], schedAlg: Alg)(implicit maxIo: Int, duplex: Boolean): Env = {
+    val startEnv = Modeller.buildStartEnv(procs, maxIo, duplex)
+
+    makeStep(startEnv, tasks)(schedAlg)(procs, systemGraph)
+  }
+  
   private def buildTask(v: Vertex, g: Graph[Vertex, WDiEdge]): Task = {
     val node = g.nodes.get(v)
     val depends = node.diPredecessors.map { pred =>
