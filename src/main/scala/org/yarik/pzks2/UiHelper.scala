@@ -114,10 +114,12 @@ abstract class Gui() {
     //r.exec("eog /tmp/pzks.png")
 
     image.getImage().flush()
-    println("image size = %dx%d" format (image.getIconWidth, image.getIconHeight()))
+    println("image size = %dx%d" format (image.getImage().getWidth(null), image.getImage().getWidth(null)))
     graphComp.text = ""
     graphComp.icon = image
-    graphComp.preferredSize = new Dimension(1000, 1000)
+    val dim =new Dimension(image.getImage().getWidth(null), image.getImage().getHeight(null))
+    graphComp.preferredSize = dim
+    graphComp.minimumSize = dim
     graphComp.repaint
     UiHelper.lasGraph = g
     content.revalidate()

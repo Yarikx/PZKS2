@@ -18,61 +18,82 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
 
     reactions += {
       case ButtonClicked(`button`) =>
-        sort()
+        Seq(1, 3, 7).foreach(x => display(new SorterMethod(x).sort))
+    }
+
+    def display(vs: List[Vertex]) {
+      println("=============sorted===========")
+      vs.foreach(println)
     }
   }
+  class SorterMethod(algorithm: Int) {
+    val pathFromPred = algorithm != 7
 
-  def sort() = {
+    private[this] def neighbours(node: NodeT) = (if (pathFromPred) node.diPredecessors else node.diSuccessors).toList
+    private[this] def degree(node: NodeT) = if (pathFromPred) node.outDegree else node.inDegree
 
     type NodeT = Graph[Vertex, WDiEdge]#NodeT
-
-    val dst = g.nodes.filter(_.outDegree == 0)
-
-    def recurNumNodes[A <: NodeT](step: Int, cur: Set[NodeT], acum: Map[NodeT, Int]): Map[NodeT, Int] = {
+    type Path = List[NodeT]
+    private[this] def recurBuildCriticalPathNums[A <: NodeT](step: Int, cur: Set[NodeT], acum: Map[NodeT, Int]): Map[NodeT, Int] = {
       val curStep = step + 1
-      val set: Set[NodeT] = cur.flatMap(_.diPredecessors.toList)
+      val set: Set[NodeT] = cur.flatMap(neighbours)
       if (!set.isEmpty) {
-        val map = set.foldLeft(acum)((m, x) => m.+(x -> (1 + step)))
-        recurNumNodes(curStep, set, map)
+        val map = set.foldLeft(acum)((m, x) => m + (x -> (1 + step)))
+        recurBuildCriticalPathNums(curStep, set, map)
       } else {
         acum
       }
     }
-
-    val startMap: Map[NodeT, Int] = dst.map(n => n -> 0).toMap
-
-    val result = recurNumNodes(0, dst.toSet, startMap)
-
-
-    type Path = List[NodeT]
     @tailrec
-    def findAllPathes(down: Boolean)(cur: Set[Path]): Set[Path] = {
+    private[this] def findAllPathes(cur: Set[Path]): Set[Path] = {
       val np = cur.flatMap { path =>
-        val neig = if(down) path.head.diSuccessors
-        else path.head.diPredecessors
-          
+        val neig = path.head.diSuccessors
+
         val sucs = neig.toList
         val newPaths = sucs.map(x => x :: path)
         newPaths
       }.toSet
-      if (np.isEmpty) {
-        cur
-      } else {
-        findAllPathes(down)(np)
-      }
+      if (np.isEmpty) cur
+      else findAllPathes(np)
     }
-    
-    def maxWe(node: NodeT)={
-      findAllPathes(true)(Set(List(node)))
+
+    private[this] def criticalPath(node: NodeT) = {
+      findAllPathes(Set(List(node)))
         .maxBy(_.map(_.value.value).sum)
     }
-
-    val ws = g.nodes.map(x=> (x, maxWe(x).map(_.value.value).sum)).toMap
-
-    val sorted = g.nodes.toList.sortBy(ws(_)).reverse
     
-    sorted.map(_.value)
+    def normalizeMap[K](map: Map[K, Int])={
+      val max = map.values.max
+      map.map{case (x, y) => x -> y.asInstanceOf[Double]/max}
+    }
 
+    def sort = {
+      val nodes = g.nodes.toList
+      val weigths = nodes.map(x => x -> criticalPath(x).map(_.value.value).sum).toMap
+      //find nodes that has degree == 0
+      val boundaryNodes = nodes.filter(degree(_) == 0)
+
+      //boundary nodes has critical path = 0 
+      val startMap: Map[NodeT, Int] = boundaryNodes.map(n => n -> 0).toMap
+
+      val criticalPathLengths = recurBuildCriticalPathNums(0, boundaryNodes.toSet, startMap)
+
+      val sorted = algorithm match {
+        case 3 => nodes.sortBy(weigths).reverse
+        case 1 =>
+          val normalizedWeights = normalizeMap(weigths)
+          val normalizedPaths = normalizeMap(criticalPathLengths)
+          nodes.sortBy(n => normalizedWeights(n) + normalizedPaths(n)).reverse
+        case 7 => 
+          val connectivity = nodes.map(x => x -> x.neighbors.size).toMap
+          nodes.sortBy(connectivity).reverse.sortBy(criticalPathLengths)
+      }
+
+      sorted.map(_.value)
+    }
   }
+
+  def sort = new SorterMethod(0).sort
+  def sort(alg: Int) = new SorterMethod(alg).sort
 
 }
