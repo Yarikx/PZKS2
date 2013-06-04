@@ -269,7 +269,8 @@ object Modeller {
         envArg.startTask(time, line, task)
       }
 
-      val headTask :: rst = tasks
+      val headTask = tasks.find(_.dependsOn.map(_.task).forall(!tasks.contains(_))).get
+      val rst = tasks.filter(_ != headTask)
       val result = alg(env, procPriors, { dst =>
         val tasksData = dst.tasksData
         if (headTask.dependsOn.map(_.task).forall(tasksData.contains)) {
