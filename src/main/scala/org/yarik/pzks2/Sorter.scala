@@ -9,24 +9,7 @@ import scalax.collection.edge.WDiEdge
 import scalax.collection.mutable.Graph
 import scalax.collection.GraphTraversal._
 
-class Sorter(val g: Graph[Vertex, WDiEdge]) {
-  val button = new Button("sort")
-
-  val panel = new FlowPanel(l("sort"), button) {
-
-    listenTo(button)
-
-    reactions += {
-      case ButtonClicked(`button`) =>
-        Seq(1, 3, 7).foreach(x => display(new SorterMethod(x).sort))
-    }
-
-    def display(vs: List[Vertex]) {
-      println("=============sorted===========")
-      vs.foreach(println)
-    }
-  }
-  class SorterMethod(algorithm: Int) {
+class Sorter(g: Graph[Vertex, WDiEdge], algorithm: Int) {
     val pathFromPred = algorithm != 7
 
     private[this] def neighbours(node: NodeT) = (if (pathFromPred) node.diPredecessors else node.diSuccessors).toList
@@ -93,7 +76,6 @@ class Sorter(val g: Graph[Vertex, WDiEdge]) {
     }
   }
 
-  def sort = new SorterMethod(0).sort
-  def sort(alg: Int) = new SorterMethod(alg).sort
-
+object Sorter{
+  val algs = Seq(1,3,7)
 }

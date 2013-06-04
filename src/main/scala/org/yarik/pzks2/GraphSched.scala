@@ -33,13 +33,13 @@ class GraphSched(update: Component => Unit) {
     val systemDiGraph = SystemUi.g
     val taskGraph = TaskUi.g
     val currentTime = System.currentTimeMillis()
-    val env = transformAndSchedule(systemDiGraph, taskGraph)
+    val env = transformAndSchedule(systemDiGraph, taskGraph, new Sorter(taskGraph, 3))
     val taked = System.currentTimeMillis() - currentTime;
     println(s"taked $taked to calculate system")
     update(makeUi(env))
   }
 
-  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge])(implicit maxIo: Int, duplex: Boolean): Env = {
+  def transformAndSchedule(systemDiGraph: Graph[Vertex, WDiEdge], taskGraph: Graph[Vertex, WDiEdge], sorter: Sorter)(implicit maxIo: Int, duplex: Boolean): Env = {
 
     val systemGraph = {
       val edges = systemDiGraph.edges.map { edge =>
@@ -51,7 +51,7 @@ class GraphSched(update: Component => Unit) {
       Graph[Proc, UnDiEdge](edges: _*)
     }
 
-    val sorted = new Sorter(taskGraph).sort
+    val sorted = sorter.sort
     val sortedSystem = systemGraph.nodes.toList.sortBy(x => x.degree).map(_.value).reverse
     val sortedTasks = buildTasks(sorted, taskGraph)
 
@@ -60,7 +60,8 @@ class GraphSched(update: Component => Unit) {
 
   def schedule(procs: List[Proc], tasks: List[Task], systemGraph: Graph[Proc, UnDiEdge])(implicit maxIo: Int, duplex: Boolean): Env = {
     val startEnv = Modeller.buildStartEnv(procs, maxIo, duplex)
-    makeStep(startEnv, tasks)(procs, systemGraph)
+
+    makeStep(startEnv, tasks)(algs(1))(procs, systemGraph)
   }
 
 }
@@ -258,16 +259,32 @@ object Modeller {
   def buildStartEnv(procs: Seq[Proc], maxIo: Int, duplex: Boolean): Env =
     Env(procs.toList.map(p => TimeLine(p, maxIo)), duplex)
 
-  def makeStep(env: Env, tasks: List[Task])(implicit procPriors: List[Proc], systemG: Graph[Proc, UnDiEdge]): Env =
+  //first arg - Env to determine one or more lines to test
+  //second => function to process step with selected timeline
+  type Alg = (Env, List[Proc], TimeLine => Env) => Env
+
+  val goodAlg: Alg = { (env, procPriors, process) =>
+    val results = env.lines.par.map(process)
+    results.seq.sortBy(_.cpuSum).sortBy(_.cpuMax).head
+  }
+  
+  val badAlg: Alg = { (env, procPriors, process) =>
+    val dst = env.lines.sortBy(line => procPriors.indexOf(line.proc)).sortBy(_.lastCpu).head
+    process(dst)
+  }
+  
+  val algs = Seq(badAlg, goodAlg)
+
+  def makeStep(env: Env, tasks: List[Task])(alg: Alg)(implicit procPriors: List[Proc], systemG: Graph[Proc, UnDiEdge]): Env =
     if (tasks isEmpty) env
     else {
-      def startTask(envArg:Env, line: TimeLine, task:Task) = {
+      def startTask(envArg: Env, line: TimeLine, task: Task) = {
         val time = line.timeForTask(task)
         envArg.startTask(time, line, task)
       }
-      
+
       val headTask :: rst = tasks
-      val results = env.lines.par.map { dst =>
+      val result = alg(env, procPriors, { dst =>
         val tasksData = dst.tasksData
         if (headTask.dependsOn.map(_.task).forall(tasksData.contains)) {
           startTask(env, dst, headTask)
@@ -313,8 +330,8 @@ object Modeller {
           val newLine = updEnv(dst.proc)
           startTask(updEnv, newLine, headTask)
         }
-      }
-      val nextEnv = results.seq.sortBy(_.cpuSum).sortBy(_.cpuMax).head
-      makeStep(nextEnv, rst)
+      })
+      makeStep(result, rst)(alg)
     }
+
 }
