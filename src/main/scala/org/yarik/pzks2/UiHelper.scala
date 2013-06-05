@@ -12,7 +12,7 @@ import scalax.collection.edge.{ WDiEdge, WUnDiEdge }
 import scalax.collection.edge.Implicits._
 import scalax.collection.io.dot._
 import scalax.collection.Graph
-import scalax.collection.mutable.{Graph => MGraph}
+import scalax.collection.mutable.{ Graph => MGraph }
 
 object UiHelper {
 

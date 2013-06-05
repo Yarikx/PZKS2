@@ -4,8 +4,8 @@ import SchedUtils._
 
 object PinkFloyd extends App {
 
-  val sortAlgs = Sorter.algs.par
-  val schedAlgs = Modeller.algsWithNames.par
+  val sortAlgs = Sorter.algs
+  val schedAlgs = Modeller.algsWithNames
 
   val systemGenerator = new Generator(false)
   val tasksGenerator = new Generator(true)

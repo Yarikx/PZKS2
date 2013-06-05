@@ -7,14 +7,13 @@ import scala.swing.event.ButtonClicked
 import scala.util.Random
 import scalax.collection.GraphPredef._
 import scalax.collection.edge.Implicits._
-import scalax.collection.mutable.Graph
 import scalax.collection.edge.WDiEdge
-import scalax.collection.immutable.{Graph => IGraph}
+import scalax.collection.immutable.Graph
 
 class Generator(isDirected:Boolean) {
   val r = new Random
 
-  def createControls(update: IGraph[Vertex, WDiEdge]=> Unit) = {
+  def createControls(update: Graph[Vertex, WDiEdge]=> Unit) = {
     val loField = new TextField(5) { text = "1" }
     val hiField = new TextField(5) { text = "5" }
     val numberField = new TextField(5) { text = "5" }
@@ -42,7 +41,6 @@ class Generator(isDirected:Boolean) {
           } {
             val newGraph = generateGraph(n, l, h, k)
             update(newGraph)
-//            newGraph
           }
       }
     }
@@ -72,7 +70,7 @@ class Generator(isDirected:Boolean) {
       }
     }
 
-    @tailrec def generatee: IGraph[Vertex, WDiEdge] = {
+    @tailrec def generatee: Graph[Vertex, WDiEdge] = {
       val evalues = genVals(List())
 
       val edges =
@@ -92,7 +90,7 @@ class Generator(isDirected:Boolean) {
           }
 
       val all = vs ++ edges
-      val g = IGraph.from(vs, edges)
+      val g = Graph.from(vs, edges)
       
       if (!isDirected && !g.isConnected) generatee
       else g 
