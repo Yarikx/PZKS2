@@ -1,7 +1,7 @@
 package org.yarik.pzks2
 
 import Modeller._
-import scalax.collection.mutable.Graph
+import scalax.collection.Graph
 import scalax.collection.GraphPredef.any2EdgeAssoc
 import scalax.collection.edge.Implicits.edge2WDiEdgeAssoc
 import scalax.collection.edge.WDiEdge

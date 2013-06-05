@@ -12,7 +12,7 @@ import UiHelper._
 import scalax.collection.GraphEdge.UnDiEdge
 import scalax.collection.GraphPredef.any2EdgeAssoc
 import scalax.collection.edge.WDiEdge
-import scalax.collection.mutable.Graph
+import scalax.collection.Graph
 import scala.swing.CheckBox
 
 class GraphSched(update: (Component, String) => Unit) {
@@ -229,7 +229,7 @@ object Modeller {
   }
 
   object TimeLine {
-    val N = 1000
+    val N = 400
     private val startSlots = (1 to N).map(_ => Idle).toList
     private def buildLinks(p: Proc) = p.neighbors.map(n => (n -> startSlots)).toMap
     def apply(p: Proc, maxIo: Int) = new TimeLine(p, startSlots, buildLinks(p), buildLinks(p), maxIo)

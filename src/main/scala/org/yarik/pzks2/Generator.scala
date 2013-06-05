@@ -94,14 +94,8 @@ class Generator(isDirected:Boolean) {
       val all = vs ++ edges
       val g = IGraph.from(vs, edges)
       
-      if (isDirected && !g.isConnected) generatee
+      if (!isDirected && !g.isConnected) generatee
       else g 
-//      {
-//        println(s"values sum = $vsum")
-//        println(s"edges sum = $esum")
-//        println(vsum / (esum + vsum))
-//        gui.update
-//      }
     }
     
     generatee

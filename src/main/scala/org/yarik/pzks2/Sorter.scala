@@ -6,7 +6,7 @@ import scalax.collection.GraphTraversal.VisitorReturn._
 import scala.swing.{ Button, FlowPanel }
 import scala.swing.event.ButtonClicked
 import scalax.collection.edge.WDiEdge
-import scalax.collection.mutable.Graph
+import scalax.collection.Graph
 import scalax.collection.GraphTraversal._
 
 class Sorter(g: Graph[Vertex, WDiEdge], algorithm: Int) {

@@ -11,7 +11,8 @@ import scalax.collection.GraphPredef._
 import scalax.collection.edge.{ WDiEdge, WUnDiEdge }
 import scalax.collection.edge.Implicits._
 import scalax.collection.io.dot._
-import scalax.collection.mutable.Graph
+import scalax.collection.Graph
+import scalax.collection.mutable.{Graph => MGraph}
 
 object UiHelper {
 
@@ -87,7 +88,7 @@ abstract class Gui() {
   private lazy val imagePath = s"/tmp/graph_image_$pref.png"
   private lazy val image = new ImageIcon(imagePath)
 
-  val g: Graph[Vertex, WDiEdge] = Graph()
+  val g: MGraph[Vertex, WDiEdge] = MGraph()
 
   def findV(id: Int): Option[Vertex] =
     g.nodes.find((v: Vertex) => v.id == id).map(_.value)
