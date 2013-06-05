@@ -14,7 +14,6 @@ import scalax.collection.io.dot._
 import scalax.collection.mutable.Graph
 
 object UiHelper {
-  var lasGraph: Graph[Vertex, WDiEdge] = null
 
   def createGetD(ef: TextField) = () =>
     try {
@@ -31,6 +30,37 @@ object UiHelper {
     }
 
   def l(s: String) = new Label(s)
+
+  def edgeTransformer(root: DotRootGraph)(innerEdge: scalax.collection.Graph[Vertex, WDiEdge]#EdgeT): Option[(DotGraph, DotEdgeStmt)] = {
+    val edge = innerEdge.edge
+    val label = edge.value.weight.toString
+    Some((root,
+      DotEdgeStmt(edge.from.toString,
+        edge.to.toString, List(DotAttr("label", label)))))
+  }
+
+  def nodeTransformer(root: DotRootGraph)(innerNode: scalax.collection.Graph[Vertex, WDiEdge]#NodeT): Option[(DotGraph, DotNodeStmt)] = {
+    val node = innerNode.value
+    val label = node.toString
+    Some((root, DotNodeStmt(node.toString, Seq(DotAttr("label", label)))))
+  }
+
+  def buildImage(g: Graph[Vertex, WDiEdge], isDirected: Boolean, imagePath: String) {
+    val root = DotRootGraph(isDirected, None, false, Seq())
+    val f = edgeTransformer(root) _
+    val dot = g.toDot(root, f, iNodeTransformer = Some(nodeTransformer(root) _))
+
+    val pref = if (isDirected) "d" else "u"
+    //File magic
+    val fileName = s"/tmp/${pref}_pzks.dot"
+    val file = new FileWriter(fileName)
+    file.write(dot)
+    file.close()
+
+    val r = Runtime.getRuntime()
+
+    r.exec(s"dot -Tpng -o $imagePath $fileName").waitFor()
+  }
 }
 
 object Vertex {
@@ -52,10 +82,8 @@ object SystemUi extends Gui {
 
 abstract class Gui() {
   val selfGui = this
-
+  lazy val pref = if (isDirected) "d" else "u"
   val isDirected: Boolean
-
-  private[this] lazy val pref = if(isDirected) "d" else "u" 
   private lazy val imagePath = s"/tmp/graph_image_$pref.png"
   private lazy val image = new ImageIcon(imagePath)
 
@@ -66,20 +94,6 @@ abstract class Gui() {
 
   def findE(from: Vertex, to: Vertex) =
     g.find(from ~> to % 1)
-
-  def edgeTransformer(root: DotRootGraph)(innerEdge: scalax.collection.Graph[Vertex, WDiEdge]#EdgeT): Option[(DotGraph, DotEdgeStmt)] = {
-    val edge = innerEdge.edge
-    val label = edge.value.weight.toString
-    Some((root,
-      DotEdgeStmt(edge.from.toString,
-        edge.to.toString, List(DotAttr("label", label)))))
-  }
-
-  def nodeTransformer(root: DotRootGraph)(innerNode: scalax.collection.Graph[Vertex, WDiEdge]#NodeT): Option[(DotGraph, DotNodeStmt)] = {
-    val node = innerNode.value
-    val label = node.toString
-    Some((root, DotNodeStmt(node.toString, Seq(DotAttr("label", label)))))
-  }
 
   def display(s: String) {
     Dialog.showMessage(
@@ -98,30 +112,15 @@ abstract class Gui() {
   };
 
   def update() {
-    println(g)
-    val root = DotRootGraph(isDirected, None, false, Seq())
-    val f = edgeTransformer(root) _
-    val dot = g.toDot(root, f, iNodeTransformer = Some(nodeTransformer(root) _))
-    //File magic
-    val fileName = s"/tmp/${pref}_pzks.dot"
-    val file = new FileWriter(fileName)
-    file.write(dot)
-    file.close()
-
-    val r = Runtime.getRuntime()
-    
-    r.exec(s"dot -Tpng -o $imagePath $fileName").waitFor()
-    //r.exec("eog /tmp/pzks.png")
+    buildImage(g, isDirected, imagePath)
 
     image.getImage().flush()
-    println("image size = %dx%d" format (image.getImage().getWidth(null), image.getImage().getWidth(null)))
     graphComp.text = ""
     graphComp.icon = image
-    val dim =new Dimension(image.getImage().getWidth(null), image.getImage().getHeight(null))
+    val dim = new Dimension(image.getImage().getWidth(null), image.getImage().getHeight(null))
     graphComp.preferredSize = dim
     graphComp.minimumSize = dim
     graphComp.repaint
-    UiHelper.lasGraph = g
     content.revalidate()
   }
 
@@ -156,7 +155,12 @@ abstract class Gui() {
         add(new BoxPanel(Orientation.Vertical) {
           contents += new FlowPanel(valueField, fromField, toField, l("add"), addVertex, addEdge, new Label("edit"), editVertex, editEdge)
           contents += new FlowPanel(removeEdge, action, del, save, load)
-          contents += new Generator(selfGui).createControls
+          contents += new Generator(isDirected).createControls { ng =>
+            g.clear;
+            g ++= ng.nodes
+            g ++= ng.edges
+            update();
+          }
         }, BorderPanel.Position.South)
 
         listenTo(addVertex, removeEdge, fromField, addEdge, action, del, graphComp.mouse.clicks, save, load, editVertex, editEdge)

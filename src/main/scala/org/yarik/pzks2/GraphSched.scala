@@ -42,11 +42,7 @@ class GraphSched(update: (Component, String) => Unit) {
       println("calculated")
       update(makeUi(env), s"sorter $sortAlg, sched $schName")
     }
-    
-//    val currentTime = System.currentTimeMillis()
-//    
-//    val taked = System.currentTimeMillis() - currentTime;
-//    println(s"taked $taked to calculate system")
+
     
   }
 }

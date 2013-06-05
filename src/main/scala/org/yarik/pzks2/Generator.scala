@@ -9,13 +9,12 @@ import scalax.collection.GraphPredef._
 import scalax.collection.edge.Implicits._
 import scalax.collection.mutable.Graph
 import scalax.collection.edge.WDiEdge
+import scalax.collection.immutable.{Graph => IGraph}
 
-class Generator(gui: Gui) {
-  def g = gui.g
-
+class Generator(isDirected:Boolean) {
   val r = new Random
 
-  def createControls = {
+  def createControls(update: IGraph[Vertex, WDiEdge]=> Unit) = {
     val loField = new TextField(5) { text = "1" }
     val hiField = new TextField(5) { text = "5" }
     val numberField = new TextField(5) { text = "5" }
@@ -41,13 +40,15 @@ class Generator(gui: Gui) {
             if n > 1
             if k > 0
           } {
-            generateGraph(n, l, h, k, gui)
+            val newGraph = generateGraph(n, l, h, k)
+            update(newGraph)
+//            newGraph
           }
       }
     }
   }
 
-  def generateGraph(n: Int, lo: Int, hi: Int, k: Double, gui: Gui) {
+  def generateGraph(n: Int, lo: Int, hi: Int, k: Double) = {
 
     val mid = (lo + hi) / 2
     val vs = (0 until n).map(Vertex(_, r.nextInt(mid - lo) + lo))
@@ -71,7 +72,7 @@ class Generator(gui: Gui) {
       }
     }
 
-    @tailrec def generatee {
+    @tailrec def generatee: IGraph[Vertex, WDiEdge] = {
       val evalues = genVals(List())
 
       val edges =
@@ -90,16 +91,17 @@ class Generator(gui: Gui) {
               from ~> to % value
           }
 
-      g.clear
-      vs.foreach(g += _)
-      edges.foreach(g += _)
-      if (!gui.isDirected && !g.isConnected) generatee
-      else {
-        println(s"values sum = $vsum")
-        println(s"edges sum = $esum")
-        println(vsum / (esum + vsum))
-        gui.update
-      }
+      val all = vs ++ edges
+      val g = IGraph.from(vs, edges)
+      
+      if (isDirected && !g.isConnected) generatee
+      else g 
+//      {
+//        println(s"values sum = $vsum")
+//        println(s"edges sum = $esum")
+//        println(vsum / (esum + vsum))
+//        gui.update
+//      }
     }
     
     generatee
