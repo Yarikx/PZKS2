@@ -74,8 +74,8 @@ object Modeller {
     def isDone(task: Task) = lines.exists(_.tasksData.contains(task))
     def isPreparedFor(task: Task) = task.dependsOn.map(_.task).forall(isDone)
 
-    def cpuSum = lines.par.map(_.lastCpu).sum
-    def cpuMax = lines.par.map(_.lastCpu).max
+    def cpuSum = lines.map(_.lastCpu).sum
+    def cpuMax = lines.map(_.lastCpu).max
 
     def startTask(time: Time, line: TimeLine, task: Task): Env = {
       require(isPreparedFor(task))
@@ -229,7 +229,7 @@ object Modeller {
   }
 
   object TimeLine {
-    val N = 400
+    val N = 800
     private val startSlots = (1 to N).map(_ => Idle).toList
     private def buildLinks(p: Proc) = p.neighbors.map(n => (n -> startSlots)).toMap
     def apply(p: Proc, maxIo: Int) = new TimeLine(p, startSlots, buildLinks(p), buildLinks(p), maxIo)

@@ -92,7 +92,10 @@ class Generator(isDirected:Boolean) {
       val all = vs ++ edges
       val g = Graph.from(vs, edges)
       
-      if (!isDirected && !g.isConnected) generatee
+      if (!isDirected && !g.isConnected) {
+        println("failed to generate")
+        generatee
+      }
       else g 
     }
     

@@ -64,27 +64,22 @@ object UiHelper {
   }
 }
 
-object Vertex {
-  def apply(id: Int, v: Int) =
-    new Vertex(id) { value = v }
-}
-case class Vertex(id: Int) {
-  var value: Int = 0
+case class Vertex(id: Int, value: Int = 0) {
   override def toString() = s"$id ($value)"
 }
 
 object TaskUi extends Gui {
-  val isDirected = true
+  override def isDirected = true
 }
 
 object SystemUi extends Gui {
-  val isDirected = false
+  override def isDirected = false
 }
 
 abstract class Gui() {
   val selfGui = this
   lazy val pref = if (isDirected) "d" else "u"
-  val isDirected: Boolean
+  def isDirected: Boolean
   private lazy val imagePath = s"/tmp/graph_image_$pref.png"
   private lazy val image = new ImageIcon(imagePath)
 
@@ -206,7 +201,17 @@ abstract class Gui() {
 
           case ButtonClicked(`editVertex`) =>
             for (f <- from(); v <- value(); ver <- findV(f)) {
-              ver.value = v
+              val updVer = Vertex(ver.id, v)
+              val nodeT = g.nodes.get(ver)
+              val oldEdges = nodeT.edges
+              val newEdges = oldEdges.map{edge =>
+                val from = if(edge.from == nodeT) updVer else edge.from.value
+                val to = if(edge.to == nodeT) updVer else edge.to.value
+               	from ~> to % edge.weight
+              }
+              
+              g -= ver
+              g ++= newEdges
               update()
             }
 
